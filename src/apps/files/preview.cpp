@@ -213,11 +213,11 @@ namespace okaru::files {
 
   void ImagePreview::setTexture(TextureHandle texture, int width, int height) {
     m_texture = texture;
-    m_imageWidth = width;
-    m_imageHeight = height;
+    m_imageWidth = static_cast<float>(width);
+    m_imageHeight = static_cast<float>(height);
     m_fit = true;
-    m_offsetX = width * 0.5F;
-    m_offsetY = height * 0.5F;
+    m_offsetX = m_imageWidth * 0.5F;
+    m_offsetY = m_imageHeight * 0.5F;
     markLayoutDirty();
   }
 
@@ -271,7 +271,7 @@ namespace okaru::files {
 
   void ImagePreview::clampOffset() {
     const float s = scale();
-    const auto clampAxis = [s](float& offset, int image, float view) {
+    const auto clampAxis = [s](float& offset, float image, float view) {
       const float half = view * 0.5F / s;
       offset = image * s <= view ? image * 0.5F : std::clamp(offset, half, image - half);
     };
