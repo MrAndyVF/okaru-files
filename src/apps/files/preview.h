@@ -66,8 +66,8 @@ namespace okaru::files {
     Image* m_image = nullptr;
     InputArea* m_input = nullptr;
     TextureHandle m_texture;
-    int m_imageWidth = 0;
-    int m_imageHeight = 0;
+    float m_imageWidth = 0.0F; // en float: todas las cuentas de zoom y posición son en float
+    float m_imageHeight = 0.0F;
     bool m_fit = true;
     float m_scale = 1.0F;
     float m_offsetX = 0.0F; // centro de la vista en coordenadas de la imagen (píxeles)

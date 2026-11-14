@@ -1,6 +1,6 @@
 # okaru-files: compila la rama main del checkout (OKARU_FILES_REPO, por defecto ~/Projects/okaru-files).
 pkgname=okaru-files
-pkgver=1.0.0
+pkgver=1.0.1
 pkgrel=1
 pkgdesc='OKARU (郁): el gestor de archivos'
 arch=(x86_64)
@@ -12,6 +12,13 @@ depends=("okaru-core${_core:+=$_core}")
 makedepends=(meson ninja pkgconf okaru-core tomlplusplus nlohmann-json) # nlohmann-json: la piden las cabeceras del núcleo (okaru-core <= 1.2.4 no la declaraba)
 optdepends+=('kdeconnect: teléfonos / phones')
 optdepends+=('sshfs: archivos del teléfono / phone files')
+optdepends+=('gvfs: papelera, recientes, red y unidades extraíbles / trash, recent, network and removable drives'
+            'gvfs-smb: carpetas compartidas de Windows y Samba / Windows and Samba shares'
+            'gvfs-nfs: carpetas compartidas NFS / NFS shares'
+            'gvfs-mtp: teléfonos y cámaras por cable USB / phones and cameras over USB'
+            'gvfs-wsdd: equipos Windows de la red / Windows computers on the network'
+            'ffmpegthumbnailer: miniaturas de video / video thumbnails'
+            'libreoffice-fresh: vista previa de documentos de oficina / office document previews')
 options=('!debug' '!lto')
 source=("okaru-files::git+file://${OKARU_FILES_REPO:-$HOME/Projects/okaru-files}#branch=main")
 sha256sums=(SKIP)
