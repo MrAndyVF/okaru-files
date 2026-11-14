@@ -1,0 +1,32 @@
+# okaru-files: compila la rama main del checkout (OKARU_FILES_REPO, por defecto ~/Projects/okaru-files).
+pkgname=okaru-files
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='OKARU (郁): el gestor de archivos'
+arch=(x86_64)
+url='https://github.com/MrAndyVF/okaru-files'
+license=(MIT)
+# Sin ABI estable: depende de la versión exacta del núcleo con el que se compiló (la instalada al compilar).
+_core=$(pacman -Q okaru-core 2>/dev/null | cut -d' ' -f2)
+depends=("okaru-core${_core:+=$_core}")
+makedepends=(meson ninja pkgconf okaru-core tomlplusplus nlohmann-json) # nlohmann-json: la piden las cabeceras del núcleo (okaru-core <= 1.2.4 no la declaraba)
+optdepends+=('kdeconnect: teléfonos / phones')
+optdepends+=('sshfs: archivos del teléfono / phone files')
+options=('!debug' '!lto')
+source=("okaru-files::git+file://${OKARU_FILES_REPO:-$HOME/Projects/okaru-files}#branch=main")
+sha256sums=(SKIP)
+
+pkgver() {
+  cd okaru-files
+  git describe --long --tags --abbrev=9 --match 'v*' | sed 's/^v//; s/-\([0-9]*\)-g/.r\1.g/'
+}
+
+build() {
+  arch-meson okaru-files build -Dtests=disabled
+  meson compile -C build
+}
+
+package() {
+  meson install -C build --destdir "$pkgdir"
+  install -Dm644 okaru-files/LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+}
