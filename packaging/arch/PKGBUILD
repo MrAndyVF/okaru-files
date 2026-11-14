@@ -1,4 +1,4 @@
-# okaru-files: compila la rama main del checkout (OKARU_FILES_REPO, por defecto ~/Projects/okaru-files).
+# okaru-files: compila la rama main del checkout (OKARU_FILES_REPO, por defecto ~/Projects/okaru-project/okaru-files).
 pkgname=okaru-files
 pkgver=1.0.1
 pkgrel=1
@@ -20,7 +20,7 @@ optdepends+=('gvfs: papelera, recientes, red y unidades extraíbles / trash, rec
             'ffmpegthumbnailer: miniaturas de video / video thumbnails'
             'libreoffice-fresh: vista previa de documentos de oficina / office document previews')
 options=('!debug' '!lto')
-source=("okaru-files::git+file://${OKARU_FILES_REPO:-$HOME/Projects/okaru-files}#branch=main")
+source=("okaru-files::git+file://${OKARU_FILES_REPO:-$HOME/Projects/okaru-project/okaru-files}#branch=main")
 sha256sums=(SKIP)
 
 pkgver() {
