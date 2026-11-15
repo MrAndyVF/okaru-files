@@ -3935,6 +3935,9 @@ namespace okaru::files {
         .fill = colorSpecFromRole(ColorRole::SurfaceContainerHigh),
         .radius = Style::radiusLg * scale,
         .width = std::min((m_overlay == Overlay::IconPicker ? 760.0F : 480.0F) * scale, width - 32.0F),
+        // El selector de iconos tiene altura fija: su cuadrícula ocupa lo que queda y se desplaza dentro.
+        .height = m_overlay == Overlay::IconPicker ? std::optional<float>(std::min(640.0F * scale, height - 64.0F))
+                                                   : std::nullopt,
     });
     const auto heading = [&](std::string text) {
       card->addChild(
@@ -4403,7 +4406,7 @@ namespace okaru::files {
               .rowGap = Style::spaceXs * scale,
               .itemCursorShape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_POINTER,
               .adapter = m_iconAdapter.get(),
-              .height = std::max(160.0F * scale, std::min(460.0F * scale, height - 240.0F * scale)),
+              .flexGrow = 1.0F,
               .configure = [this](VirtualGridView& grid) { grid.setSelectedIndex(m_iconCurrent, true); },
           })
       );
