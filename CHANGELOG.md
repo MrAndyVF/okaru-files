@@ -2,6 +2,33 @@
 
 Each version has an English and a Spanish section. / Cada versión tiene una sección en inglés y otra en español.
 
+## [1.0.2] - 2026-11-15
+
+### English
+
+#### Features
+- **Recent** now fills up: opening a file (double click or *Open with*) records it in the shared GTK history
+  (`recently-used.xbel`), respecting the system privacy setting and never overwriting an unreadable history.
+- **Folder icon picker**: *Custom icon…* opens a grid with every icon of the active icon pack (Papirus-Light: 18 591),
+  with search, folders first. *Restore default icon* brings back the theme icon; *From a file…* still picks an image.
+- `~/snap` shows the theme's `folder-snap` icon by default, so it follows the folder color and the palette.
+
+#### Fixes
+- The context menu no longer closes right away after a slightly slow right click.
+
+### Español
+
+#### Novedades
+- **Recientes** ya se llena: al abrir un archivo (doble clic o *Abrir con*) se anota en el historial compartido de GTK
+  (`recently-used.xbel`), respetando el ajuste de privacidad del sistema y sin pisar un historial ilegible.
+- **Selector de iconos de carpeta**: *Icono personalizado…* abre una cuadrícula con todos los iconos del pack activo
+  (Papirus-Light: 18 591), con buscador y las carpetas primero. *Restablecer icono por defecto* devuelve el del tema;
+  *Desde un archivo…* sigue permitiendo una imagen.
+- `~/snap` muestra por defecto el icono `folder-snap` del tema, así sigue el color de carpetas y la paleta.
+
+#### Correcciones
+- El menú contextual ya no se cierra al instante tras un clic derecho algo lento.
+
 ## [1.0.1] - 2026-11-14
 
 ### English
