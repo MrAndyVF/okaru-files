@@ -229,7 +229,8 @@
         "picker-title": "Choose an icon",
         "search": "Search icons",
         "loading": "Loading the icons of the current theme…",
-        "from-file": "From a file…"
+        "from-file": "From a file…",
+        "reset": "Restore default icon"
       },
       "preview": {
         "failed": "Could not open this file",

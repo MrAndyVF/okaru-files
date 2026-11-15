@@ -229,7 +229,8 @@
         "picker-title": "Elegir un icono",
         "search": "Buscar iconos",
         "loading": "Cargando los iconos del tema actual…",
-        "from-file": "Desde un archivo…"
+        "from-file": "Desde un archivo…",
+        "reset": "Restablecer icono por defecto"
       },
       "preview": {
         "failed": "No se pudo abrir este archivo",

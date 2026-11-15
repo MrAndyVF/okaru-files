@@ -986,6 +986,9 @@ namespace okaru::files {
     if (m_iconTargets.empty()) {
       return;
     }
+    m_iconTargetsCustom = std::ranges::any_of(selection(), [](const FileEntry* e) {
+      return !e->customIcon.empty() || !e->customIconName.empty();
+    });
     const std::string theme = IconResolver::activeThemeName();
     if ((m_themeIcons == nullptr || m_themeIconsTheme != theme) && !m_themeIconsLoading) {
       // Leer el tema son miles de archivos (Papirus: ~17 000 iconos): en otro hilo, una vez por tema.
@@ -1042,6 +1045,14 @@ namespace okaru::files {
   void FilesWindow::setCustomIconName(const std::string& name) {
     setMetadata(m_iconTargets, "metadata::custom-icon-name", name);
     setMetadata(m_iconTargets, "metadata::custom-icon", {});
+    m_overlay = Overlay::None;
+    m_app.requestRebuild();
+  }
+
+  // Vuelve al icono que les da el tema (el de antes de cambiarlo), por nombre o por imagen.
+  void FilesWindow::resetIcon() {
+    setMetadata(m_iconTargets, "metadata::custom-icon", {});
+    setMetadata(m_iconTargets, "metadata::custom-icon-name", {});
     m_overlay = Overlay::None;
     m_app.requestRebuild();
   }
@@ -4418,6 +4429,12 @@ namespace okaru::files {
           })
       );
       buttons(
+          ui::button(
+              {.text = tr("apps.files.icon.reset"),
+               .enabled = m_iconTargetsCustom,
+               .variant = ButtonVariant::Ghost,
+               .onClick = [this] { DeferredCall::callLater([this] { resetIcon(); }); }}
+          ),
           ui::button(
               {.text = tr("apps.files.icon.from-file"),
                .variant = ButtonVariant::Ghost,

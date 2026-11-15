@@ -184,6 +184,7 @@ namespace okaru::files {
     void iconPickerDialog();
     void filterThemeIcons();
     void setCustomIconName(const std::string& name);
+    void resetIcon();
     void clearCustomIcon();
     void setMetadata(const std::vector<std::string>& uris, const char* key, const std::string& value);
     void sendTo(const ShareTarget& target);
@@ -263,6 +264,7 @@ namespace okaru::files {
     // Selector de iconos: carpetas destino, nombres del tema (compartidos con el hilo que los lee) y filtro.
     friend class IconPickerAdapter;
     std::vector<std::string> m_iconTargets;
+    bool m_iconTargetsCustom = false; // alguna tiene icono propio: se puede restablecer
     std::shared_ptr<const std::vector<std::string>> m_themeIcons;
     std::string m_themeIconsTheme;
     bool m_themeIconsLoading = false;
