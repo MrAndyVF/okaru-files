@@ -6,6 +6,8 @@
 #include "apps/common/tab_strip.h"
 #include "apps/files/archive.h"
 #include "apps/files/drag_icon.h"
+#include "apps/files/recent.h"
+#include "apps/files/theme_icons.h"
 #include "apps/pdf/pdf_view.h"
 #include "core/deferred_call.h"
 #include "core/input/key_modifiers.h"
@@ -15,12 +17,14 @@
 #include "render/core/renderer.h"
 #include "render/core/texture_manager.h"
 #include "render/scene/input_area.h"
+#include "system/icon_resolver.h"
 #include "ui/builders.h"
 #include "ui/controls/box.h"
 #include "ui/controls/context_menu.h"
 #include "ui/controls/input.h"
 #include "ui/controls/label.h"
 #include "ui/controls/progress_bar.h"
+#include "ui/controls/virtual_grid_view.h"
 #include "ui/palette.h"
 #include "ui/style.h"
 #include "util/file_utils.h"
@@ -153,7 +157,7 @@ namespace okaru::files {
   } // namespace
 
   FilesWindow::FilesWindow(apps::OkaruApp& app, const std::vector<std::string>& locations, const PickerOptions* picker)
-      : m_app(app) {
+      : m_app(app), m_snapDir((std::filesystem::path(g_get_home_dir()) / "snap").string()) {
     if (picker != nullptr) {
       m_picker = *picker;
       m_pickFilter = picker->currentFilter;
@@ -670,7 +674,9 @@ namespace okaru::files {
       g_clear_error(&error);
       tab().view.selected = {entry.uri};
       openWithDialog();
+      return;
     }
+    addRecent(uri, nullptr);
   }
 
   void FilesWindow::openSelection() {
@@ -745,6 +751,10 @@ namespace okaru::files {
     if (g_app_info_launch_uris(chosen, uris, nullptr, &error) == FALSE) {
       setMessage(error != nullptr ? error->message : "?", true);
       g_clear_error(&error);
+    } else {
+      for (const auto& uri : m_dialogUris) {
+        addRecent(uri, chosen);
+      }
     }
     g_list_free_full(uris, g_free);
     g_object_unref(chosen);
@@ -841,6 +851,13 @@ namespace okaru::files {
         }
       }
     }
+    // ~/snap no es carpeta XDG y GIO le da el icono genérico: se le pone el folder-snap del tema, como GIO hace
+    // con folder-projects. Por nombre, así sigue el color de carpetas (de OKARU o el de Papirus según la paleta).
+    if (entry.directory && entry.customIcon.empty() && entry.customIconName.empty() && entry.path == m_snapDir) {
+      FileEntry snap = entry;
+      snap.icons.insert(snap.icons.begin(), "folder-snap");
+      return m_icons.get(renderer, snap, pixels);
+    }
     return m_icons.get(renderer, entry, pixels);
   }
 
@@ -892,6 +909,151 @@ namespace okaru::files {
     } else {
       setMetadata(m_colorTargets, "metadata::okaru-folder-color", color);
     }
+    m_app.requestRebuild();
+  }
+
+  // Cuadrícula del selector de iconos: solo existen las celdas visibles; cada una pide su icono al caché.
+  class IconPickerAdapter final : public VirtualGridAdapter {
+  public:
+    explicit IconPickerAdapter(FilesWindow& window) : m_window(window) {}
+
+    [[nodiscard]] std::size_t itemCount() const override { return m_window.m_iconFiltered.size(); }
+
+    [[nodiscard]] std::unique_ptr<Node> createTile() override {
+      const float scale = m_window.m_iconScale;
+      auto tile = ui::column({
+          .align = FlexAlign::Center,
+          .justify = FlexJustify::Center,
+          .gap = Style::spaceXs * scale,
+          .padding = Style::spaceXs * scale,
+          .radius = Style::radiusMd * scale,
+      });
+      tile->addChild(ui::image({.fit = ImageFit::Contain, .width = 48.0F * scale, .height = 48.0F * scale}));
+      tile->addChild(
+          ui::label(
+              {.fontSize = Style::fontSizeCaption * scale,
+               .color = colorSpecFromRole(ColorRole::OnSurfaceVariant),
+               .maxWidth = 88.0F * scale,
+               .maxLines = 1,
+               .textAlign = TextAlign::Center,
+               .ellipsize = TextEllipsize::Middle}
+          )
+      );
+      return tile;
+    }
+
+    void bindTile(Node& tile, std::size_t index, bool selected, bool hovered) override {
+      const std::string& name = (*m_window.m_themeIcons)[m_window.m_iconFiltered[index]];
+      auto& flex = static_cast<Flex&>(tile);
+      flex.setFill(
+          selected  ? colorSpecFromRole(ColorRole::SecondaryContainer)
+          : hovered ? colorSpecFromRole(ColorRole::SurfaceContainerHighest)
+                    : colorSpecFromRole(ColorRole::SurfaceContainerHigh, 0.0F)
+      );
+      // Por tipo, no por posición: con fondo y radio la columna añade su propio nodo de fondo entre los hijos.
+      Image* image = nullptr;
+      Label* label = nullptr;
+      for (const auto& child : tile.children()) {
+        image = image != nullptr ? image : dynamic_cast<Image*>(child.get());
+        label = label != nullptr ? label : dynamic_cast<Label*>(child.get());
+      }
+      if (Renderer* renderer = m_window.m_app.renderer(); renderer != nullptr && image != nullptr) {
+        const auto pixels = static_cast<int>(48.0F * m_window.m_iconScale);
+        if (const TextureHandle texture = m_window.m_icons.named(*renderer, {name}, pixels); texture.valid()) {
+          image->setExternalTexture(*renderer, texture);
+        }
+      }
+      if (label != nullptr) {
+        label->setText(name);
+      }
+    }
+
+    void onActivate(std::size_t index) override {
+      std::string name = (*m_window.m_themeIcons)[m_window.m_iconFiltered[index]];
+      DeferredCall::callLater([window = &m_window, name = std::move(name)] { window->setCustomIconName(name); });
+    }
+
+    [[nodiscard]] std::string itemTooltip(std::size_t index) const override {
+      return (*m_window.m_themeIcons)[m_window.m_iconFiltered[index]];
+    }
+
+  private:
+    FilesWindow& m_window;
+  };
+
+  void FilesWindow::iconPickerDialog() {
+    m_iconTargets = selectedUris();
+    if (m_iconTargets.empty()) {
+      return;
+    }
+    m_iconTargetsCustom = std::ranges::any_of(selection(), [](const FileEntry* e) {
+      return !e->customIcon.empty() || !e->customIconName.empty();
+    });
+    const std::string theme = IconResolver::activeThemeName();
+    if ((m_themeIcons == nullptr || m_themeIconsTheme != theme) && !m_themeIconsLoading) {
+      // Leer el tema son miles de archivos (Papirus: ~17 000 iconos): en otro hilo, una vez por tema.
+      m_themeIconsLoading = true;
+      m_themeIcons.reset();
+      std::weak_ptr<int> alive = m_alive;
+      std::thread([this, alive, theme] {
+        auto names = std::make_shared<const std::vector<std::string>>(listThemeIcons(theme, iconThemeRoots()));
+        DeferredCall::callLater([this, alive, theme, names = std::move(names)] {
+          if (alive.expired()) {
+            return;
+          }
+          m_themeIconsLoading = false;
+          m_themeIcons = names;
+          m_themeIconsTheme = theme;
+          filterThemeIcons();
+          m_app.requestRebuild();
+        });
+      }).detach();
+    }
+    m_iconQuery.clear();
+    m_iconScroll = {};
+    filterThemeIcons();
+    m_overlay = Overlay::IconPicker;
+    m_app.requestRebuild();
+  }
+
+  void FilesWindow::filterThemeIcons() {
+    m_iconFiltered.clear();
+    m_iconCurrent.reset();
+    if (m_themeIcons == nullptr) {
+      return;
+    }
+    // El icono que ya tiene la primera carpeta queda marcado.
+    const auto items = selection();
+    const std::string current = items.empty() ? std::string{} : items.front()->customIconName;
+    std::string query = m_iconQuery;
+    std::ranges::transform(query, query.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const auto& names = *m_themeIcons;
+    for (std::size_t i = 0; i < names.size(); ++i) {
+      if (query.empty() || names[i].contains(query)) {
+        if (names[i] == current) {
+          m_iconCurrent = m_iconFiltered.size();
+        }
+        m_iconFiltered.push_back(i);
+      }
+    }
+    if (m_overlay == Overlay::IconPicker && m_iconGrid != nullptr) {
+      m_iconGrid->notifyDataChanged();
+      m_iconGrid->setSelectedIndex(m_iconCurrent, false);
+    }
+  }
+
+  void FilesWindow::setCustomIconName(const std::string& name) {
+    setMetadata(m_iconTargets, "metadata::custom-icon-name", name);
+    setMetadata(m_iconTargets, "metadata::custom-icon", {});
+    m_overlay = Overlay::None;
+    m_app.requestRebuild();
+  }
+
+  // Vuelve al icono que les da el tema (el de antes de cambiarlo), por nombre o por imagen.
+  void FilesWindow::resetIcon() {
+    setMetadata(m_iconTargets, "metadata::custom-icon", {});
+    setMetadata(m_iconTargets, "metadata::custom-icon-name", {});
+    m_overlay = Overlay::None;
     m_app.requestRebuild();
   }
 
@@ -2230,7 +2392,7 @@ namespace okaru::files {
     if (anyFolder) {
       menu.push_back({tr("apps.files.menu.folder-color"), [this] { folderColorDialog(false); }, !first.path.empty()});
     }
-    menu.push_back({tr("apps.files.menu.custom-icon"), [this] { chooseCustomIcon(); }, !first.path.empty()});
+    menu.push_back({tr("apps.files.menu.custom-icon"), [this] { iconPickerDialog(); }, !first.path.empty()});
     if (anyCustom) {
       menu.push_back({tr("apps.files.menu.custom-icon-clear"), [this] { clearCustomIcon(); }});
     }
@@ -3710,7 +3872,12 @@ namespace okaru::files {
             .acceptedButtons = InputArea::buttonMask({BTN_LEFT, BTN_RIGHT, BTN_MIDDLE}),
             .width = width,
             .height = height,
-            .onPress = [this](const InputArea::PointerData&) {
+            // onPress también llega al soltar. Si el menú se abrió con una pulsación cuya vista ya se reconstruyó,
+            // esa suelta cae aquí y lo cerraba al instante: solo una pulsación nueva lo cierra.
+            .onPress = [this](const InputArea::PointerData& data) {
+              if (!data.pressed) {
+                return;
+              }
               DeferredCall::callLater([this] {
                 m_menu.clear();
                 m_app.requestRebuild();
@@ -3790,7 +3957,10 @@ namespace okaru::files {
         .padding = Style::spaceLg * scale,
         .fill = colorSpecFromRole(ColorRole::SurfaceContainerHigh),
         .radius = Style::radiusLg * scale,
-        .width = std::min(480.0F * scale, width - 32.0F),
+        .width = std::min((m_overlay == Overlay::IconPicker ? 760.0F : 480.0F) * scale, width - 32.0F),
+        // El selector de iconos tiene altura fija: su cuadrícula ocupa lo que queda y se desplaza dentro.
+        .height = m_overlay == Overlay::IconPicker ? std::optional<float>(std::min(640.0F * scale, height - 64.0F))
+                                                   : std::nullopt,
     });
     const auto heading = [&](std::string text) {
       card->addChild(
@@ -4220,6 +4390,70 @@ namespace okaru::files {
       }
       card->addChild(std::move(grid));
       buttons(cancelButton());
+      break;
+    }
+    case Overlay::IconPicker: {
+      heading(tr("apps.files.icon.picker-title"));
+      m_iconScale = scale;
+      card->addChild(
+          ui::input({
+              .value = m_iconQuery,
+              .placeholder = tr("apps.files.icon.search"),
+              .fontSize = Style::fontSizeBody * scale,
+              .clearButtonEnabled = true,
+              .onChange =
+                  [this](const std::string& value) {
+                    m_iconQuery = value;
+                    filterThemeIcons();
+                    if (m_iconGrid != nullptr) {
+                      m_iconGrid->scrollToIndex(0);
+                    }
+                  },
+          })
+      );
+      if (m_themeIcons == nullptr) {
+        body(tr("apps.files.icon.loading"));
+      }
+      if (m_iconAdapter == nullptr) {
+        m_iconAdapter = std::make_unique<IconPickerAdapter>(*this);
+      }
+      card->addChild(
+          ui::virtualGridView({
+              .out = &m_iconGrid,
+              .state = &m_iconScroll,
+              .contentScale = scale,
+              .minCellWidth = 96.0F * scale,
+              .cellHeight = 96.0F * scale,
+              .squareCells = false,
+              .columnGap = Style::spaceXs * scale,
+              .rowGap = Style::spaceXs * scale,
+              .itemCursorShape = WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_POINTER,
+              .adapter = m_iconAdapter.get(),
+              .flexGrow = 1.0F,
+              .configure = [this](VirtualGridView& grid) { grid.setSelectedIndex(m_iconCurrent, true); },
+          })
+      );
+      buttons(
+          ui::button(
+              {.text = tr("apps.files.icon.reset"),
+               .enabled = m_iconTargetsCustom,
+               .variant = ButtonVariant::Ghost,
+               .onClick = [this] { DeferredCall::callLater([this] { resetIcon(); }); }}
+          ),
+          ui::button(
+              {.text = tr("apps.files.icon.from-file"),
+               .variant = ButtonVariant::Ghost,
+               .onClick =
+                   [this] {
+                     DeferredCall::callLater([this] {
+                       m_overlay = Overlay::None;
+                       m_app.requestRebuild();
+                       chooseCustomIcon();
+                     });
+                   }}
+          ),
+          cancelButton()
+      );
       break;
     }
     case Overlay::Password: {
