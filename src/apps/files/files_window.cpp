@@ -3872,7 +3872,12 @@ namespace okaru::files {
             .acceptedButtons = InputArea::buttonMask({BTN_LEFT, BTN_RIGHT, BTN_MIDDLE}),
             .width = width,
             .height = height,
-            .onPress = [this](const InputArea::PointerData&) {
+            // onPress también llega al soltar. Si el menú se abrió con una pulsación cuya vista ya se reconstruyó,
+            // esa suelta cae aquí y lo cerraba al instante: solo una pulsación nueva lo cierra.
+            .onPress = [this](const InputArea::PointerData& data) {
+              if (!data.pressed) {
+                return;
+              }
               DeferredCall::callLater([this] {
                 m_menu.clear();
                 m_app.requestRebuild();
