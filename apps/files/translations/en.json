@@ -225,7 +225,11 @@
       },
       "icon": {
         "choose": "Choose an icon",
-        "filter": "Images"
+        "filter": "Images",
+        "picker-title": "Choose an icon",
+        "search": "Search icons",
+        "loading": "Loading the icons of the current theme…",
+        "from-file": "From a file…"
       },
       "preview": {
         "failed": "Could not open this file",

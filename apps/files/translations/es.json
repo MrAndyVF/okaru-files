@@ -225,7 +225,11 @@
       },
       "icon": {
         "choose": "Elegir un icono",
-        "filter": "Imágenes"
+        "filter": "Imágenes",
+        "picker-title": "Elegir un icono",
+        "search": "Buscar iconos",
+        "loading": "Cargando los iconos del tema actual…",
+        "from-file": "Desde un archivo…"
       },
       "preview": {
         "failed": "No se pudo abrir este archivo",

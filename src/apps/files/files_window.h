@@ -34,6 +34,8 @@ class Input;
 class Label;
 class Node;
 class ProgressBar;
+class VirtualGridAdapter;
+class VirtualGridView;
 struct KeyboardEvent;
 
 namespace okaru::apps {
@@ -92,6 +94,7 @@ namespace okaru::files {
       Compress,
       ConfirmReplace,
       Errors,
+      IconPicker,
     };
     enum class Mode : std::uint8_t { List, Grid, Columns };
 
@@ -177,6 +180,10 @@ namespace okaru::files {
     void folderColorDialog(bool global);
     void setFolderColor(const std::string& color);
     void chooseCustomIcon();
+    // Selector con todos los iconos del tema activo (los nombres se leen una vez, en otro hilo).
+    void iconPickerDialog();
+    void filterThemeIcons();
+    void setCustomIconName(const std::string& name);
     void clearCustomIcon();
     void setMetadata(const std::vector<std::string>& uris, const char* key, const std::string& value);
     void sendTo(const ShareTarget& target);
@@ -252,6 +259,19 @@ namespace okaru::files {
     bool m_iconsDirty = false;
     std::unique_ptr<apps::PortalFileChooser> m_chooser;
     std::vector<std::string> m_colorTargets; // carpetas a pintar; vacío = color de todas
+    // Selector de iconos: carpetas destino, nombres del tema (compartidos con el hilo que los lee) y filtro.
+    friend class IconPickerAdapter;
+    std::vector<std::string> m_iconTargets;
+    std::shared_ptr<const std::vector<std::string>> m_themeIcons;
+    std::string m_themeIconsTheme;
+    bool m_themeIconsLoading = false;
+    std::string m_iconQuery;
+    std::vector<std::size_t> m_iconFiltered;
+    std::optional<std::size_t> m_iconCurrent;
+    ScrollViewState m_iconScroll;
+    std::unique_ptr<VirtualGridAdapter> m_iconAdapter;
+    VirtualGridView* m_iconGrid = nullptr;
+    float m_iconScale = 1.0F;
 
     // Montajes: diálogo de credenciales (GMountOperation en espera de respuesta).
     void* m_mountOp = nullptr;

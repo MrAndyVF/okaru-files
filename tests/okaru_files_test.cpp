@@ -8,6 +8,7 @@
 #include "apps/files/portal.h"
 #include "apps/files/recent.h"
 #include "apps/files/share.h"
+#include "apps/files/theme_icons.h"
 #include "apps/files/thumbnails.h"
 #include "core/deferred_call.h"
 
@@ -52,6 +53,33 @@ namespace {
 } // namespace
 
 int main() {
+  {
+    // Iconos del pack: el activo (con sus carpetas enlazadas, leídas una vez) y la base de su familia; un pack
+    // ajeno que herede (breeze, hicolor) no cuenta. Sin repetir y carpetas primero.
+    const fs::path root = fs::temp_directory_path() / ("okaru-icons-test-" + std::to_string(::getpid()));
+    fs::remove_all(root);
+    const auto write = [](const fs::path& path, const std::string& text) {
+      fs::create_directories(path.parent_path());
+      std::ofstream(path) << text;
+    };
+    write(root / "Pack/index.theme", "[Icon Theme]\nName=Pack\nInherits=Other,hicolor\n");
+    write(root / "Pack/48x48/places/folder-music.svg", "<svg/>");
+    write(root / "Pack/48x48/apps/firefox.svg", "<svg/>");
+    write(root / "Pack/48x48/mimetypes/text-plain.png", "png");
+    write(root / "Pack/48x48/mimetypes/notes.txt", "no es un icono");
+    write(root / "Pack-Light/index.theme", "[Icon Theme]\nName=Pack Light\nInherits=Pack, Other, hicolor\n");
+    write(root / "Pack-Light/22x22/places/folder.svg", "<svg/>");
+    fs::create_directory_symlink("../Pack/48x48", root / "Pack-Light/48x48");
+    write(root / "Other/index.theme", "[Icon Theme]\nName=Other\n");
+    write(root / "Other/48x48/apps/only-other.svg", "<svg/>");
+    write(root / "hicolor/index.theme", "[Icon Theme]\nName=Hicolor\n");
+    write(root / "hicolor/48x48/apps/only-hicolor.svg", "<svg/>");
+    assert((listThemeIcons("Pack-Light", {root}) == std::vector<std::string>{"folder", "folder-music", "firefox",
+                                                                              "text-plain"}));
+    assert((listThemeIcons("Pack", {root}) == std::vector<std::string>{"folder-music", "firefox", "text-plain"}));
+    assert(listThemeIcons("NoExiste", {root}).empty());
+    fs::remove_all(root);
+  }
   {
     // Recientes: se anota en recently-used.xbel sin duplicar, conservando lo de otras apps; uno ilegible no se pisa.
     const fs::path dir = fs::temp_directory_path() / ("okaru-recent-test-" + std::to_string(::getpid()));
