@@ -6,6 +6,7 @@
 #include "apps/common/tab_strip.h"
 #include "apps/files/archive.h"
 #include "apps/files/drag_icon.h"
+#include "apps/files/recent.h"
 #include "apps/pdf/pdf_view.h"
 #include "core/deferred_call.h"
 #include "core/input/key_modifiers.h"
@@ -670,7 +671,9 @@ namespace okaru::files {
       g_clear_error(&error);
       tab().view.selected = {entry.uri};
       openWithDialog();
+      return;
     }
+    addRecent(uri, nullptr);
   }
 
   void FilesWindow::openSelection() {
@@ -745,6 +748,10 @@ namespace okaru::files {
     if (g_app_info_launch_uris(chosen, uris, nullptr, &error) == FALSE) {
       setMessage(error != nullptr ? error->message : "?", true);
       g_clear_error(&error);
+    } else {
+      for (const auto& uri : m_dialogUris) {
+        addRecent(uri, chosen);
+      }
     }
     g_list_free_full(uris, g_free);
     g_object_unref(chosen);

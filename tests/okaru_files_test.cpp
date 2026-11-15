@@ -6,6 +6,7 @@
 #include "apps/files/file_ops.h"
 #include "apps/files/icon_cache.h"
 #include "apps/files/portal.h"
+#include "apps/files/recent.h"
 #include "apps/files/share.h"
 #include "apps/files/thumbnails.h"
 #include "core/deferred_call.h"
@@ -17,6 +18,8 @@
 #include <fstream>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <glib.h>
+#include <iterator>
+#include <string>
 #include <thread>
 #include <unistd.h>
 
@@ -49,6 +52,35 @@ namespace {
 } // namespace
 
 int main() {
+  {
+    // Recientes: se anota en recently-used.xbel sin duplicar, conservando lo de otras apps; uno ilegible no se pisa.
+    const fs::path dir = fs::temp_directory_path() / ("okaru-recent-test-" + std::to_string(::getpid()));
+    fs::remove_all(dir);
+    const std::string xbel = (dir / "recently-used.xbel").string();
+    assert(addRecentTo(xbel, "file:///tmp/a.pdf", "application/pdf", "Okaru PDF", "okaru-pdf %U"));
+    assert(addRecentTo(xbel, "file:///tmp/a.pdf", "application/pdf", "Okaru PDF", "okaru-pdf %U"));
+    assert(addRecentTo(xbel, "file:///tmp/b.png", "image/png", "Okaru View", "okaru-view %U"));
+    GBookmarkFile* read = g_bookmark_file_new();
+    assert(g_bookmark_file_load_from_file(read, xbel.c_str(), nullptr));
+    assert(g_bookmark_file_get_size(read) == 2);
+    guint count = 0;
+    assert(g_bookmark_file_get_application_info(read, "file:///tmp/a.pdf", "Okaru PDF", nullptr, &count, nullptr,
+                                                nullptr));
+    assert(count == 2);
+    gchar* mime = g_bookmark_file_get_mime_type(read, "file:///tmp/b.png", nullptr);
+    assert(std::string(mime) == "image/png");
+    g_free(mime);
+    g_bookmark_file_free(read);
+    assert((fs::status(xbel).permissions() & fs::perms::others_read) == fs::perms::none);
+    {
+      std::ofstream broken(xbel, std::ios::trunc);
+      broken << "<xbel no es xml";
+    }
+    assert(!addRecentTo(xbel, "file:///tmp/c.txt", "text/plain", "Okaru Edit", "okaru-edit %U"));
+    std::ifstream kept(xbel);
+    assert(std::string(std::istreambuf_iterator<char>(kept), {}) == "<xbel no es xml");
+    fs::remove_all(dir);
+  }
   {
     // Imagen del arrastre: sin imágenes no hay icono; con una de 64 px y 2 archivos, insignia arriba a la derecha.
     assert(makeDragIcon({}, 1, Color{}, Color{}, 1.0F).pixels.empty());

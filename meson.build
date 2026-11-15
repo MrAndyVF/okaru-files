@@ -12,7 +12,7 @@ _inc = include_directories('src')
 _args = ['-Wall', '-Wextra', '-Wno-missing-field-initializers', '-Wpedantic', '-Wconversion', '-Wshadow']
 
 executable('okaru-files',
-  sources: files('src/apps/files/archive.cpp', 'src/apps/files/files_window.cpp', 'src/apps/files/main.cpp', 'src/apps/files/phones.cpp', 'src/apps/files/places.cpp', 'src/apps/files/portal.cpp', 'src/apps/files/share.cpp', 'src/apps/files/thumbnails.cpp', 'src/apps/files/preview.cpp'),
+  sources: files('src/apps/files/archive.cpp', 'src/apps/files/files_window.cpp', 'src/apps/files/main.cpp', 'src/apps/files/phones.cpp', 'src/apps/files/places.cpp', 'src/apps/files/portal.cpp', 'src/apps/files/recent.cpp', 'src/apps/files/share.cpp', 'src/apps/files/thumbnails.cpp', 'src/apps/files/preview.cpp'),
   include_directories: _inc,
   dependencies: _deps,
   cpp_args: _args,
@@ -30,7 +30,7 @@ install_data('assets/org.freedesktop.impl.portal.desktop.okaru.service',
 
 if get_option('tests').allowed()
   test('okaru_files', executable('okaru_files_test',
-    sources: files('tests/okaru_files_test.cpp', 'src/apps/files/archive.cpp', 'src/apps/files/portal.cpp', 'src/apps/files/share.cpp', 'src/apps/files/thumbnails.cpp'),
+    sources: files('tests/okaru_files_test.cpp', 'src/apps/files/archive.cpp', 'src/apps/files/portal.cpp', 'src/apps/files/recent.cpp', 'src/apps/files/share.cpp', 'src/apps/files/thumbnails.cpp'),
     include_directories: _inc,
     dependencies: _deps,
     build_rpath: _okaru_libdir,
