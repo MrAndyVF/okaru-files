@@ -259,6 +259,7 @@ namespace okaru::files {
     bool m_iconsDirty = false;
     std::unique_ptr<apps::PortalFileChooser> m_chooser;
     std::vector<std::string> m_colorTargets; // carpetas a pintar; vacío = color de todas
+    std::string m_snapDir; // ~/snap
     // Selector de iconos: carpetas destino, nombres del tema (compartidos con el hilo que los lee) y filtro.
     friend class IconPickerAdapter;
     std::vector<std::string> m_iconTargets;

@@ -157,7 +157,7 @@ namespace okaru::files {
   } // namespace
 
   FilesWindow::FilesWindow(apps::OkaruApp& app, const std::vector<std::string>& locations, const PickerOptions* picker)
-      : m_app(app) {
+      : m_app(app), m_snapDir((std::filesystem::path(g_get_home_dir()) / "snap").string()) {
     if (picker != nullptr) {
       m_picker = *picker;
       m_pickFilter = picker->currentFilter;
@@ -850,6 +850,13 @@ namespace okaru::files {
           return it->second.handle;
         }
       }
+    }
+    // ~/snap no es carpeta XDG y GIO le da el icono genérico: se le pone el folder-snap del tema, como GIO hace
+    // con folder-projects. Por nombre, así sigue el color de carpetas (de OKARU o el de Papirus según la paleta).
+    if (entry.directory && entry.customIcon.empty() && entry.customIconName.empty() && entry.path == m_snapDir) {
+      FileEntry snap = entry;
+      snap.icons.insert(snap.icons.begin(), "folder-snap");
+      return m_icons.get(renderer, snap, pixels);
     }
     return m_icons.get(renderer, entry, pixels);
   }
