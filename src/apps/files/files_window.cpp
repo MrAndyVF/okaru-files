@@ -943,14 +943,22 @@ namespace okaru::files {
           : hovered ? colorSpecFromRole(ColorRole::SurfaceContainerHighest)
                     : colorSpecFromRole(ColorRole::SurfaceContainerHigh, 0.0F)
       );
-      auto* image = static_cast<Image*>(tile.children()[0].get());
-      if (Renderer* renderer = m_window.m_app.renderer(); renderer != nullptr) {
+      // Por tipo, no por posición: con fondo y radio la columna añade su propio nodo de fondo entre los hijos.
+      Image* image = nullptr;
+      Label* label = nullptr;
+      for (const auto& child : tile.children()) {
+        image = image != nullptr ? image : dynamic_cast<Image*>(child.get());
+        label = label != nullptr ? label : dynamic_cast<Label*>(child.get());
+      }
+      if (Renderer* renderer = m_window.m_app.renderer(); renderer != nullptr && image != nullptr) {
         const auto pixels = static_cast<int>(48.0F * m_window.m_iconScale);
         if (const TextureHandle texture = m_window.m_icons.named(*renderer, {name}, pixels); texture.valid()) {
           image->setExternalTexture(*renderer, texture);
         }
       }
-      static_cast<Label*>(tile.children()[1].get())->setText(name);
+      if (label != nullptr) {
+        label->setText(name);
+      }
     }
 
     void onActivate(std::size_t index) override {
