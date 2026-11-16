@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -67,7 +68,8 @@ namespace okaru::files {
     void writeBookmarks(const std::vector<Bookmark>& bookmarks) const;
     static void onMonitorChanged(void* monitor, void* object, void* self);
 
-    GVolumeMonitor* m_monitor = nullptr;
+    GVolumeMonitor* m_monitor = nullptr; // nulo hasta que GIO carga los monitores en su hilo
+    std::shared_ptr<int> m_alive = std::make_shared<int>(0);
     std::vector<Place> m_places;
     std::vector<Phone> m_phones;
     ChangedFn m_onChanged;

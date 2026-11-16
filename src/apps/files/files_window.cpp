@@ -2019,6 +2019,32 @@ namespace okaru::files {
     g_object_unref(operation);
   }
 
+  // Para lo que se dibuja: nunca espera a gvfsd (tras el login tarda segundos en arrancar, y una
+  // conexión de red puede tardar más). Lo remoto se resuelve en un hilo y se redibuja al llegar.
+  std::string FilesWindow::shownPath(const std::string& uri) {
+    if (uri.starts_with("file://")) {
+      return uriToPath(uri); // local: GIO lo convierte sin D-Bus
+    }
+    if (auto it = m_shownPaths.find(uri); it != m_shownPaths.end()) {
+      return it->second;
+    }
+    m_shownPaths.emplace(uri, uri); // provisional: un solo hilo por URI
+    std::weak_ptr<int> alive = m_alive;
+    std::thread([this, alive, uri] {
+      std::string path = uriToPath(uri);
+      DeferredCall::callLater([this, alive, uri, path = std::move(path)] {
+        if (alive.expired()) {
+          return;
+        }
+        if (path != uri) {
+          m_shownPaths[uri] = path;
+          m_app.requestRebuild();
+        }
+      });
+    }).detach();
+    return uri;
+  }
+
   void FilesWindow::refreshPhones() {
     if (m_phonesBusy) {
       m_phonesAgain = true;
@@ -2527,6 +2553,7 @@ namespace okaru::files {
       m_places.setOnChanged(nullptr);
       m_places.refresh();
       m_places.setOnChanged([this] {
+        m_shownPaths.clear(); // montajes nuevos o quitados: rutas FUSE distintas
         if (m_view == nullptr || !m_view->dragging()) {
           m_app.requestRebuild();
         }
@@ -2547,7 +2574,7 @@ namespace okaru::files {
           .onClose = [this](std::size_t i) { closeTab(i); },
       };
       for (const auto& t : m_tabs) {
-        props.tabs.push_back({displayNameOf(t->model->uri()), uriToPath(t->model->uri())});
+        props.tabs.push_back({displayNameOf(t->model->uri()), shownPath(t->model->uri())});
       }
       main->addChild(apps::tabStrip(m_app.renderer(), width, scale, std::move(props)));
     }
@@ -2959,7 +2986,7 @@ namespace okaru::files {
       const Place& copy = place;
       auto hit = ui::inputArea({
           .acceptedButtons = InputArea::buttonMask({BTN_LEFT, BTN_RIGHT, BTN_MIDDLE}),
-          .tooltip = place.uri.empty() ? place.name : uriToPath(place.uri),
+          .tooltip = place.uri.empty() ? place.name : shownPath(place.uri),
           .width = (kSidebarWidth - 2.0F * Style::spaceSm) * scale
               - (place.canEject || place.canUnmount ? 34.0F * scale : 0.0F),
           .height = rowHeight,
@@ -3059,7 +3086,7 @@ namespace okaru::files {
                  .color = colorSpecFromRole(active ? ColorRole::Primary : ColorRole::OnSurfaceVariant)}
             ),
             ui::label(
-                {.text = uriToPath(t.model->uri()),
+                {.text = shownPath(t.model->uri()),
                  .fontSize = Style::fontSizeCaption * scale,
                  .fontWeight = active ? FontWeight::SemiBold : FontWeight::Normal,
                  .color = colorSpecFromRole(active ? ColorRole::OnSurface : ColorRole::OnSurfaceVariant),
@@ -4228,12 +4255,12 @@ namespace okaru::files {
         );
         card->addChild(std::move(top));
         info(tr("apps.files.prop.type"), e.typeName);
-        info(tr("apps.files.prop.location"), uriToPath(parentUri(p.uris.front())));
+        info(tr("apps.files.prop.location"), shownPath(parentUri(p.uris.front())));
         if (!e.trashOrigin.empty()) {
           info(tr("apps.files.prop.origin"), e.trashOrigin);
         }
         if (!e.target.empty()) {
-          info(tr("apps.files.prop.target"), uriToPath(e.target));
+          info(tr("apps.files.prop.target"), shownPath(e.target));
         }
       } else {
         heading(trp("apps.files.prop.many", static_cast<long>(p.uris.size())));

@@ -229,6 +229,8 @@ namespace okaru::files {
     void activatePlace(const Place& place, bool newTab = false);
     void unmountPlace(const Place& place, bool eject);
     void refreshPhones();
+    // Ruta para mostrar sin esperar a gvfsd (lo remoto se resuelve en un hilo).
+    [[nodiscard]] std::string shownPath(const std::string& uri);
     // GMountOperation conectada a los diálogos de contraseña y preguntas (el que la pide la suelta con g_object_unref).
     [[nodiscard]] void* newMountOperation();
     void onAskPassword(void* operation, const char* message, const char* user, const char* domain, unsigned flags);
@@ -313,6 +315,7 @@ namespace okaru::files {
     Timer m_phonesTimer;
     bool m_phonesBusy = false;
     bool m_phonesAgain = false;
+    std::unordered_map<std::string, std::string> m_shownPaths;
     std::vector<std::unique_ptr<Tab>> m_tabs;
     std::size_t m_active = 0;
     bool m_split = false;     // dos paneles (F3)
