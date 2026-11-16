@@ -42,6 +42,7 @@
         "network": "RED"
       },
       "places": {
+        "used": "{percent} %",
         "home": "Carpeta personal",
         "recent": "Recientes",
         "trash": "Papelera",
@@ -113,6 +114,9 @@
         "redo": "Rehacer (Ctrl+Mayús+Z)",
         "unmount": "Desmontar",
         "eject": "Expulsar",
+        "device-hide": "Ocultar",
+        "device-show": "Mostrar",
+        "show-hidden-devices": "Mostrar dispositivos ocultos",
         "send": "Enviar a…",
         "folder-color": "Color de carpeta…",
         "folder-color-all": "Color de todas las carpetas…",

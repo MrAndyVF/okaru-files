@@ -42,6 +42,7 @@
         "network": "NETWORK"
       },
       "places": {
+        "used": "{percent}%",
         "home": "Home",
         "recent": "Recent",
         "trash": "Trash",
@@ -113,6 +114,9 @@
         "redo": "Redo (Ctrl+Shift+Z)",
         "unmount": "Unmount",
         "eject": "Eject",
+        "device-hide": "Hide",
+        "device-show": "Show",
+        "show-hidden-devices": "Show hidden devices",
         "send": "Send to…",
         "folder-color": "Folder color…",
         "folder-color-all": "Color of all folders…",

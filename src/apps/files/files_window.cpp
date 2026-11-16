@@ -44,6 +44,7 @@
 #include <thread>
 #include <toml++/toml.hpp>
 #include <unistd.h>
+#include <utility>
 
 namespace okaru::files {
 
@@ -180,6 +181,7 @@ namespace okaru::files {
     m_glib = std::make_unique<apps::GlibPollSource>();
     m_app.addPollSource(m_glib.get());
     loadState();
+    m_places.setDeviceLayout(m_deviceOrder, m_hiddenDevices, m_showHiddenDevices);
 
     // Los nombres de los lugares se traducen al construir la escena (el idioma se carga dentro de run()).
     // Idioma, tema o paleta cambiados: lugares traducidos de nuevo e iconos (acento) otra vez.
@@ -2094,6 +2096,94 @@ namespace okaru::files {
     }).detach();
   }
 
+  // ── Dispositivos: orden y ocultos ─────────────────────────────────────────────────────────────────
+
+  void FilesWindow::applyDeviceLayout() {
+    m_places.setDeviceLayout(m_deviceOrder, m_hiddenDevices, m_showHiddenDevices);
+  }
+
+  void FilesWindow::toggleDeviceHidden(const std::string& key) {
+    if (std::erase(m_hiddenDevices, key) == 0) {
+      m_hiddenDevices.push_back(key);
+    }
+    if (m_hiddenDevices.empty()) {
+      m_showHiddenDevices = false;
+    }
+    saveState();
+    applyDeviceLayout();
+  }
+
+  void FilesWindow::moveDeviceDrag(float localY) {
+    if (m_deviceDrag.key.empty()) {
+      return;
+    }
+    if (!m_deviceDrag.active && std::abs(localY - m_deviceDrag.startLocalY) < 6.0F * m_sidebarScale) {
+      return;
+    }
+    m_deviceDrag.active = true;
+    // La fila capturada da coordenadas propias; se pasan a la escena con el punto donde se pulsó.
+    const float sceneY = m_deviceDrag.startSceneY + (localY - m_deviceDrag.startLocalY);
+    std::size_t count = 0;
+    std::size_t target = 0;
+    for (auto& row : m_placeRows) {
+      if (row.deviceKey.empty()) {
+        continue;
+      }
+      float x = 0.0F;
+      float y = 0.0F;
+      Node::absolutePosition(row.node, x, y);
+      if (y + row.node->height() / 2.0F < sceneY) {
+        target = count + 1;
+      }
+      if (row.deviceKey == m_deviceDrag.key) {
+        row.node->setOpacity(0.5F);
+      }
+      ++count;
+    }
+    m_deviceDrag.target = target;
+    std::size_t i = 0;
+    for (auto& row : m_placeRows) {
+      if (row.deviceKey.empty()) {
+        continue;
+      }
+      row.lineTop->setVisible(i == target);
+      row.lineBottom->setVisible(target == count && i + 1 == count);
+      ++i;
+    }
+    m_app.invalidate();
+  }
+
+  void FilesWindow::finishDeviceDrag() {
+    const DeviceDrag drag = std::exchange(m_deviceDrag, {});
+    if (!drag.active) {
+      return;
+    }
+    m_suppressPlaceClick = true;
+    std::vector<std::string> keys;
+    for (const auto& row : m_placeRows) {
+      if (!row.deviceKey.empty()) {
+        keys.push_back(row.deviceKey);
+      }
+    }
+    if (const auto from = std::ranges::find(keys, drag.key); from != keys.end()) {
+      const auto index = static_cast<std::size_t>(from - keys.begin());
+      std::size_t to = std::min(drag.target, keys.size());
+      if (to > index) {
+        --to; // al quitarla, las de abajo suben una
+      }
+      keys.erase(from);
+      keys.insert(keys.begin() + static_cast<std::ptrdiff_t>(to), drag.key);
+      m_deviceOrder = mergeDeviceOrder(m_deviceOrder, keys);
+      saveState();
+    }
+    // Siempre: quita la marca y la atenuación aunque se suelte en el mismo lugar.
+    DeferredCall::callLater([this, alive = std::weak_ptr<int>(m_alive)] {
+      if (!alive.expired()) {
+        applyDeviceLayout();
+      }
+    });
+  }
+
   // ── Credenciales y servidores ──────────────────────────────────────────────────────────────────────
 
   void* FilesWindow::newMountOperation() {
@@ -2488,6 +2578,25 @@ namespace okaru::files {
         menu.push_back({tr("apps.files.menu.eject"), [act] { act(true); }});
       }
     }
+    if (place.section == PlaceSection::Devices && !place.key.empty()) {
+      menu.push_back({.separator = true});
+      menu.push_back(
+          {tr(place.hidden ? "apps.files.menu.device-show" : "apps.files.menu.device-hide"),
+           [this, key = place.key] { toggleDeviceHidden(key); }}
+      );
+      if (!m_hiddenDevices.empty()) {
+        menu.push_back(
+            {.label = tr("apps.files.menu.show-hidden-devices"),
+             .action =
+                 [this] {
+                   m_showHiddenDevices = !m_showHiddenDevices;
+                   applyDeviceLayout();
+                 },
+             .checked = m_showHiddenDevices,
+             .check = true}
+        );
+      }
+    }
     showMenu(std::move(menu), x, y);
   }
 
@@ -2523,6 +2632,19 @@ namespace okaru::files {
          .checked = m_sidebar,
          .check = true}
     );
+    // Aquí también: si se ocultaron todos los dispositivos, no queda ninguno donde hacer clic derecho.
+    if (!m_hiddenDevices.empty()) {
+      menu.push_back(
+          {.label = tr("apps.files.menu.show-hidden-devices"),
+           .action =
+               [this] {
+                 m_showHiddenDevices = !m_showHiddenDevices;
+                 applyDeviceLayout();
+               },
+           .checked = m_showHiddenDevices,
+           .check = true}
+      );
+    }
     menu.push_back(
         {.label = tr("apps.files.menu.thumbnails"),
          .action =
@@ -2914,6 +3036,8 @@ namespace okaru::files {
 
   std::unique_ptr<Node> FilesWindow::buildSidebar(float height, float scale) {
     (void)height;
+    m_deviceDrag = {}; // reconstruir suelta las filas: un arrastre a medias se descarta
+    m_sidebarScale = scale;
     auto column = ui::column({
         .align = FlexAlign::Stretch,
         .gap = 1.0F * scale,
@@ -2968,7 +3092,11 @@ namespace okaru::files {
       auto texts = ui::column(
           {.align = FlexAlign::Stretch, .justify = FlexJustify::Center, .gap = 3.0F * scale, .flexGrow = 1.0F}
       );
-      texts->addChild(
+      const float used = place.total > 0
+          ? 1.0F - static_cast<float>(static_cast<double>(place.free) / static_cast<double>(place.total))
+          : 0.0F;
+      auto title = ui::row({.align = FlexAlign::Center, .gap = Style::spaceXs * scale});
+      title->addChild(
           ui::label({
               .text = place.name,
               .fontSize = Style::fontSizeCaption * scale,
@@ -2976,11 +3104,21 @@ namespace okaru::files {
               .color = colorSpecFromRole(place.mounted ? ColorRole::OnSurface : ColorRole::OnSurfaceVariant),
               .maxLines = 1,
               .ellipsize = TextEllipsize::End,
+              .flexGrow = 1.0F,
           })
       );
       if (place.total > 0) {
-        const float used =
-            1.0F - static_cast<float>(static_cast<double>(place.free) / static_cast<double>(place.total));
+        title->addChild(
+            ui::label({
+                .text = tr("apps.files.places.used", "percent", static_cast<int>(std::lround(used * 100.0F))),
+                .fontSize = Style::fontSizeMini * scale,
+                .color = colorSpecFromRole(used > 0.9F ? ColorRole::Error : ColorRole::OnSurfaceVariant),
+                .maxLines = 1,
+            })
+        );
+      }
+      texts->addChild(std::move(title));
+      if (place.total > 0) {
         texts->addChild(
             ui::progressBar({
                 .fill = colorSpecFromRole(used > 0.9F ? ColorRole::Error : ColorRole::Primary),
@@ -3009,6 +3147,25 @@ namespace okaru::files {
         );
       }
       row->addChild(std::move(content));
+      if (place.hidden) {
+        row->setOpacity(0.5F);
+      }
+      Box* lineTop = nullptr;
+      Box* lineBottom = nullptr;
+      if (!place.key.empty()) {
+        for (auto [out, y] : {std::pair{&lineTop, -1.5F * scale}, std::pair{&lineBottom, rowHeight - 0.5F * scale}}) {
+          auto line = ui::box({
+              .out = out,
+              .fill = colorSpecFromRole(ColorRole::Primary),
+              .radius = 1.0F * scale,
+              .width = (kSidebarWidth - 2.0F * Style::spaceSm) * scale,
+              .height = 2.0F * scale,
+          });
+          line->setPosition(0.0F, y);
+          line->setVisible(false);
+          row->addChild(std::move(line));
+        }
+      }
       const Place& copy = place;
       auto hit = ui::inputArea({
           .acceptedButtons = InputArea::buttonMask({BTN_LEFT, BTN_RIGHT, BTN_MIDDLE}),
@@ -3028,8 +3185,24 @@ namespace okaru::files {
                   background->setFill(clearColorSpec());
                 }
               },
+          .onMotion = [this](const InputArea::PointerData& data) { moveDeviceDrag(data.localY); },
+          .onPress =
+              [this, key = place.key](const InputArea::PointerData& data) {
+                if (data.button != BTN_LEFT || key.empty()) {
+                  return;
+                }
+                if (data.pressed) {
+                  m_suppressPlaceClick = false;
+                  m_deviceDrag = {.key = key, .startSceneY = data.sceneY, .startLocalY = data.localY};
+                } else {
+                  finishDeviceDrag();
+                }
+              },
           .onClick =
               [this, copy](const InputArea::PointerData& data) {
+                if (std::exchange(m_suppressPlaceClick, false)) {
+                  return;
+                }
                 if (data.button == BTN_RIGHT) {
                   openPlaceMenu(copy, data.sceneX, data.sceneY);
                 } else {
@@ -3041,7 +3214,15 @@ namespace okaru::files {
       });
       hit->setCursorShape(WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_POINTER);
       row->addChild(std::move(hit));
-      m_placeRows.push_back({.node = row.get(), .background = background, .uri = place.uri, .active = active});
+      m_placeRows.push_back(
+          {.node = row.get(),
+           .background = background,
+           .uri = place.uri,
+           .active = active,
+           .deviceKey = place.key,
+           .lineTop = lineTop,
+           .lineBottom = lineBottom}
+      );
       column->addChild(std::move(row));
     }
 
@@ -5288,6 +5469,19 @@ namespace okaru::files {
           }
         }
       }
+      const auto strings = [&](const char* key) {
+        std::vector<std::string> out;
+        if (const auto* list = table["places"][key].as_array(); list != nullptr) {
+          for (const auto& item : *list) {
+            if (const auto value = item.value<std::string>(); value) {
+              out.push_back(*value);
+            }
+          }
+        }
+        return out;
+      };
+      m_deviceOrder = strings("device_order");
+      m_hiddenDevices = strings("hidden");
     } catch (const toml::parse_error&) {
       // Archivo dañado: valores de fábrica.
     }
@@ -5317,8 +5511,19 @@ namespace okaru::files {
     for (const auto& server : m_recentServers) {
       servers.push_back(server);
     }
+    const auto array = [](const std::vector<std::string>& items) {
+      toml::array out;
+      for (const auto& item : items) {
+        out.push_back(item);
+      }
+      return out;
+    };
     toml::table root{
-        {"view", view}, {"folders", folders}, {"sort", sorts}, {"servers", toml::table{{"recent", servers}}}
+        {"view", view},
+        {"folders", folders},
+        {"sort", sorts},
+        {"servers", toml::table{{"recent", servers}}},
+        {"places", toml::table{{"device_order", array(m_deviceOrder)}, {"hidden", array(m_hiddenDevices)}}},
     };
     std::error_code ec;
     fs::create_directories(statePath().parent_path(), ec);

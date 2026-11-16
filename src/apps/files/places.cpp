@@ -116,6 +116,82 @@ namespace okaru::files {
       Places::DoneFn done;
     };
 
+    // Nombre de /dev/disk/by-label o by-uuid que apunta a `device` (udev escapa los espacios como \x20).
+    std::string diskLink(const char* dir, const std::string& device) {
+      std::error_code ec;
+      const fs::path target = fs::canonical(device, ec);
+      if (ec) {
+        return {};
+      }
+      for (const auto& entry : fs::directory_iterator(dir, ec)) {
+        std::error_code linkError;
+        if (fs::canonical(entry.path(), linkError) != target || linkError) {
+          continue;
+        }
+        std::string name = entry.path().filename().string();
+        for (std::size_t at = name.find("\\x"); at != std::string::npos && at + 4 <= name.size();
+             at = name.find("\\x", at + 1)) {
+          name.replace(at, 4, 1, static_cast<char>(std::stoi(name.substr(at + 2, 2), nullptr, 16)));
+        }
+        return name;
+      }
+      return {};
+    }
+
+    // /proc/self/mounts escapa espacios y demás como \040 (octal).
+    std::string unescapeMount(const std::string& text) {
+      std::string out;
+      for (std::size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '\\' && i + 3 < text.size()) {
+          out += static_cast<char>(std::stoi(text.substr(i + 1, 3), nullptr, 8));
+          i += 3;
+        } else {
+          out += text[i];
+        }
+      }
+      return out;
+    }
+
+    // Discos montados por fstab fuera de /media y /run/media: GIO los oculta (salvo con x-gvfs-show); Dolphin no.
+    std::vector<Place> dataDisks(const std::vector<Place>& listed) {
+      std::vector<std::pair<std::string, std::string>> mounts; // dispositivo, punto de montaje
+      std::string rootDevice;
+      std::ifstream in("/proc/self/mounts");
+      for (std::string device, mountPoint, rest; in >> device >> mountPoint && std::getline(in, rest);) {
+        mountPoint = unescapeMount(mountPoint);
+        if (mountPoint == "/") {
+          rootDevice = device;
+        }
+        mounts.emplace_back(device, mountPoint);
+      }
+      std::vector<Place> out;
+      std::vector<std::string> seen;
+      for (const auto& [device, mountPoint] : mounts) {
+        const std::string uri = pathToUri(mountPoint);
+        if (!isDataDisk(device, mountPoint, rootDevice)
+            || std::ranges::find(seen, device) != seen.end()
+            || std::ranges::any_of(listed, [&](const Place& p) { return p.uri == uri; })) {
+          continue;
+        }
+        seen.push_back(device);
+        std::string name = diskLink("/dev/disk/by-label", device);
+        const std::string uuid = diskLink("/dev/disk/by-uuid", device);
+        Place place{
+            .section = PlaceSection::Devices,
+            .name = name.empty() ? fs::path(mountPoint).filename().string() : name,
+            .uri = uri,
+            .glyph = "database",
+            .id = "mount:" + uri,
+            .key = uuid.empty() ? "dev:" + device : "volume:" + uuid,
+        };
+        GFile* root = g_file_new_for_path(mountPoint.c_str());
+        fillSpace(place, root);
+        g_object_unref(root);
+        out.push_back(std::move(place));
+      }
+      return out;
+    }
+
   } // namespace
 
   Places::Places() {
@@ -197,7 +273,8 @@ namespace okaru::files {
           .section = PlaceSection::Devices,
           .name = tr("apps.files.places.computer"),
           .uri = "file:///",
-          .glyph = "device-laptop"
+          .glyph = "device-laptop",
+          .key = "root",
       };
       GFile* file = g_file_new_for_path("/");
       fillSpace(root, file);
@@ -215,6 +292,7 @@ namespace okaru::files {
           .id = "kdeconnect:" + phone.id,
           .mounted = phone.mounted && !phone.storages.empty(),
           .canUnmount = phone.mounted,
+          .key = "kdeconnect:" + phone.id,
       });
     }
 
@@ -243,6 +321,14 @@ namespace okaru::files {
           .canUnmount = g_mount_can_unmount(mount) != FALSE,
           .canEject = g_mount_can_eject(mount) != FALSE,
       };
+      if (device) {
+        // La clave del volumen, así un disco conserva su lugar montado o sin montar.
+        GVolume* volume = g_mount_get_volume(mount);
+        place.key = volume != nullptr ? volumeId(volume) : place.id;
+        if (volume != nullptr) {
+          g_object_unref(volume);
+        }
+      }
       if (native) {
         fillSpace(place, root);
       }
@@ -274,12 +360,37 @@ namespace okaru::files {
           .id = volumeId(volume),
           .mounted = false,
           .canEject = g_volume_can_eject(volume) != FALSE,
+          .key = volumeId(volume),
       });
     }
     g_list_free_full(volumes, g_object_unref);
 
+    for (Place& disk : dataDisks(m_places)) {
+      m_places.push_back(std::move(disk));
+    }
+
     add(PlaceSection::Network, tr("apps.files.places.network"), "network:///", "network");
     add(PlaceSection::Network, tr("apps.files.places.connect"), "okaru:connect", "plug");
+
+    // Cada sección junta (un montaje de red entre discos no repite encabezados) y Dispositivos en el orden del
+    // usuario: lo que no tiene lugar guardado (un USB nuevo) va al final; los ocultos, fuera o atenuados.
+    const auto rank = [this](const Place& p) {
+      if (p.section != PlaceSection::Devices) {
+        return std::size_t{0};
+      }
+      const auto it = std::ranges::find(m_deviceOrder, p.key);
+      return it == m_deviceOrder.end() ? m_deviceOrder.size() : static_cast<std::size_t>(it - m_deviceOrder.begin());
+    };
+    std::ranges::stable_sort(m_places, [&](const Place& a, const Place& b) {
+      return a.section != b.section ? a.section < b.section : rank(a) < rank(b);
+    });
+    for (Place& p : m_places) {
+      p.hidden =
+          p.section == PlaceSection::Devices && std::ranges::find(m_hiddenDevices, p.key) != m_hiddenDevices.end();
+    }
+    if (!m_showHiddenDevices) {
+      std::erase_if(m_places, [](const Place& p) { return p.hidden; });
+    }
 
     if (m_onChanged) {
       m_onChanged();
@@ -346,6 +457,13 @@ namespace okaru::files {
   }
 
   // ── Montar y desmontar ─────────────────────────────────────────────────────────────────────────────
+
+  void Places::setDeviceLayout(std::vector<std::string> order, std::vector<std::string> hidden, bool showHidden) {
+    m_deviceOrder = std::move(order);
+    m_hiddenDevices = std::move(hidden);
+    m_showHiddenDevices = showHidden;
+    refresh();
+  }
 
   void Places::setPhones(std::vector<Phone> phones) {
     m_phones = std::move(phones);
