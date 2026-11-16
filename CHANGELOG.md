@@ -2,6 +2,22 @@
 
 Each version has an English and a Spanish section. / Cada versión tiene una sección en inglés y otra en español.
 
+## [1.0.3] - 2026-11-15
+
+### English
+
+#### Fixes
+- Files opens right away after logging in (it took about 5 seconds, up to 10 with gvfs still starting): paths shown
+  in tabs, sidebar tooltips and Properties no longer wait for gvfsd. Remote paths (sftp, smb…) are resolved in the
+  background, and drives and mounts join the sidebar as soon as they are ready.
+
+### Español
+
+#### Correcciones
+- Archivos abre al instante tras iniciar sesión (tardaba unos 5 segundos, hasta 10 con gvfs aún arrancando): las rutas
+  de pestañas, tooltips de la barra lateral y Propiedades ya no esperan a gvfsd. Las rutas remotas (sftp, smb…) se
+  resuelven en segundo plano, y los discos y montajes aparecen en la barra lateral en cuanto están listos.
+
 ## [1.0.2] - 2026-11-15
 
 ### English
