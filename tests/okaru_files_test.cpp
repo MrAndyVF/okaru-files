@@ -5,6 +5,7 @@
 #include "apps/files/file_model.h"
 #include "apps/files/file_ops.h"
 #include "apps/files/icon_cache.h"
+#include "apps/files/places.h"
 #include "apps/files/portal.h"
 #include "apps/files/recent.h"
 #include "apps/files/share.h"
@@ -53,6 +54,30 @@ namespace {
 } // namespace
 
 int main() {
+  {
+    // Dispositivos: discos de datos sí; raíz, sus subvolúmenes, partes del sistema, loops y zram no.
+    const std::string root = "/dev/nvme0n1p5";
+    assert(isDataDisk("/dev/sdb1", "/mnt/Files", root));
+    assert(isDataDisk("/dev/nvme1n1p1", "/mnt/Games", root));
+    assert(isDataDisk("/dev/sdc1", "/data", root));
+    assert(isDataDisk("/dev/sdd1", "/boots", root)); // prefijo de /boot, pero no es /boot
+    assert(!isDataDisk(root, "/home", root));
+    assert(!isDataDisk("/dev/nvme0n1p1", "/boot", root));
+    assert(!isDataDisk("/dev/nvme0n1p9", "/var/lib/docker", root));
+    assert(!isDataDisk("/dev/sde1", "/run/media/u/USB", root)); // de esos ya se encarga GIO
+    assert(!isDataDisk("/dev/loop3", "/mnt/iso", root));
+    assert(!isDataDisk("/dev/zram0", "/mnt/z", root));
+    assert(!isDataDisk("tmpfs", "/mnt/tmp", root));
+    assert(!isDataDisk("/dev/sdf1", "/", "/dev/other"));
+
+    // Orden tras arrastrar: lo desconectado conserva su lugar detrás de su predecesor.
+    using V = std::vector<std::string>;
+    assert(mergeDeviceOrder({}, V{"b", "a"}) == (V{"b", "a"}));
+    assert(mergeDeviceOrder(V{"root", "usb", "files"}, V{"files", "root"}) == (V{"files", "root", "usb"}));
+    assert(mergeDeviceOrder(V{"usb", "root", "files"}, V{"files", "root"}) == (V{"usb", "files", "root"}));
+    assert(mergeDeviceOrder(V{"a", "x", "y", "b"}, V{"b", "a"}) == (V{"b", "a", "x", "y"}));
+    assert(mergeDeviceOrder(V{"a", "b"}, V{"b", "a", "c"}) == (V{"b", "a", "c"}));
+  }
   {
     // Iconos del pack: el activo (con sus carpetas enlazadas, leídas una vez) y la base de su familia; un pack
     // ajeno que herede (breeze, hicolor) no cuenta. Sin repetir y carpetas primero.

@@ -229,6 +229,10 @@ namespace okaru::files {
     void activatePlace(const Place& place, bool newTab = false);
     void unmountPlace(const Place& place, bool eject);
     void refreshPhones();
+    void applyDeviceLayout();
+    void toggleDeviceHidden(const std::string& key);
+    void moveDeviceDrag(float localY);
+    void finishDeviceDrag();
     // Ruta para mostrar sin esperar a gvfsd (lo remoto se resuelve en un hilo).
     [[nodiscard]] std::string shownPath(const std::string& uri);
     // GMountOperation conectada a los diálogos de contraseña y preguntas (el que la pide la suelta con g_object_unref).
@@ -421,7 +425,26 @@ namespace okaru::files {
       Box* background = nullptr;
       std::string uri;
       bool active = false;
+      std::string deviceKey;     // Dispositivos: se puede arrastrar para ordenar
+      Box* lineTop = nullptr;    // marca de destino al arrastrar: antes de esta fila…
+      Box* lineBottom = nullptr; // …o después (solo cuenta en la última)
     };
+    // Arrastre de un dispositivo en el panel lateral para cambiar su lugar.
+    struct DeviceDrag {
+      std::string key;
+      float startSceneY = 0.0F;
+      float startLocalY = 0.0F;
+      bool active = false;
+      std::size_t target = 0; // posición de destino entre las filas de dispositivos
+    };
+    DeviceDrag m_deviceDrag;
+    bool m_suppressPlaceClick = false; // la suelta de un arrastre no abre el disco
+    Node* m_sidebarContent = nullptr;
+    Box* m_dropLine = nullptr;
+    float m_sidebarScale = 1.0F;
+    std::vector<std::string> m_deviceOrder;   // [places] device_order en files.toml
+    std::vector<std::string> m_hiddenDevices; // [places] hidden
+    bool m_showHiddenDevices = false;
     std::vector<PlaceRow> m_placeRows; // filas del panel lateral (soltar encima mientras se arrastra)
     std::string m_dropPlace;           // URI de la fila resaltada
     bool m_focusFind = false;
