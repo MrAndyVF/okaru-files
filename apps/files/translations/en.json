@@ -42,6 +42,7 @@
         "network": "NETWORK"
       },
       "places": {
+        "used": "{percent}%",
         "home": "Home",
         "recent": "Recent",
         "trash": "Trash",

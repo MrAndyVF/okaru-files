@@ -42,6 +42,7 @@
         "network": "RED"
       },
       "places": {
+        "used": "{percent} %",
         "home": "Carpeta personal",
         "recent": "Recientes",
         "trash": "Papelera",

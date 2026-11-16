@@ -3066,7 +3066,11 @@ namespace okaru::files {
       auto texts = ui::column(
           {.align = FlexAlign::Stretch, .justify = FlexJustify::Center, .gap = 3.0F * scale, .flexGrow = 1.0F}
       );
-      texts->addChild(
+      const float used = place.total > 0
+          ? 1.0F - static_cast<float>(static_cast<double>(place.free) / static_cast<double>(place.total))
+          : 0.0F;
+      auto title = ui::row({.align = FlexAlign::Center, .gap = Style::spaceXs * scale});
+      title->addChild(
           ui::label({
               .text = place.name,
               .fontSize = Style::fontSizeCaption * scale,
@@ -3074,11 +3078,21 @@ namespace okaru::files {
               .color = colorSpecFromRole(place.mounted ? ColorRole::OnSurface : ColorRole::OnSurfaceVariant),
               .maxLines = 1,
               .ellipsize = TextEllipsize::End,
+              .flexGrow = 1.0F,
           })
       );
       if (place.total > 0) {
-        const float used =
-            1.0F - static_cast<float>(static_cast<double>(place.free) / static_cast<double>(place.total));
+        title->addChild(
+            ui::label({
+                .text = tr("apps.files.places.used", "percent", static_cast<int>(std::lround(used * 100.0F))),
+                .fontSize = Style::fontSizeMini * scale,
+                .color = colorSpecFromRole(used > 0.9F ? ColorRole::Error : ColorRole::OnSurfaceVariant),
+                .maxLines = 1,
+            })
+        );
+      }
+      texts->addChild(std::move(title));
+      if (place.total > 0) {
         texts->addChild(
             ui::progressBar({
                 .fill = colorSpecFromRole(used > 0.9F ? ColorRole::Error : ColorRole::Primary),
