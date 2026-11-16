@@ -2,6 +2,38 @@
 
 Each version has an English and a Spanish section. / Cada versión tiene una sección en inglés y otra en español.
 
+## [1.1.0] - 2026-11-16
+
+### English
+
+#### Features
+- **Connected drives in Devices**, like Dolphin: drives mounted from fstab outside `/media` (for example
+  `/mnt/Files`), which GIO hides, now show up with their label, a usage bar and the **percentage used** (red above
+  90 %). System parts (`/boot`, `/home`, `/var`…, subvolumes of the root disk, loop and zram devices) stay out.
+- **Drag to reorder** devices in the sidebar; a line shows where the drive will land. A disconnected drive keeps its
+  place for when it comes back, and a new one (a USB stick) goes to the end.
+- **Hide / Show** in a device's menu, and **Show hidden devices** (also in the ⋮ menu).
+- **Properties** counts folder sizes much faster (only name, type and size per file; 3–14× in our tests, more on hard
+  disks) and shows the running totals while it counts.
+
+#### Fixes
+- A network mount listed between drives no longer repeats the section headers in the sidebar.
+
+### Español
+
+#### Novedades
+- **Discos conectados en Dispositivos**, como en Dolphin: los discos montados por fstab fuera de `/media` (por ejemplo
+  `/mnt/Files`), que GIO oculta, aparecen con su etiqueta, una barra de uso y el **porcentaje ocupado** (en rojo
+  pasado el 90 %). Las partes del sistema (`/boot`, `/home`, `/var`…, subvolúmenes del disco raíz, loops y zram) no.
+- **Arrastrar para ordenar** los dispositivos en el panel lateral; una línea marca dónde va a quedar. Un disco
+  desconectado conserva su lugar para cuando vuelva, y uno nuevo (un USB) va al final.
+- **Ocultar / Mostrar** en el menú de cada dispositivo, y **Mostrar dispositivos ocultos** (también en el menú ⋮).
+- **Propiedades** calcula el tamaño de las carpetas mucho más rápido (solo nombre, tipo y tamaño de cada archivo; de 3
+  a 14 veces en nuestras pruebas, más en discos mecánicos) y muestra las cifras parciales mientras cuenta.
+
+#### Correcciones
+- Un montaje de red entre los discos ya no repite los encabezados de sección en el panel lateral.
+
 ## [1.0.3] - 2026-11-15
 
 ### English

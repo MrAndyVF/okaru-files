@@ -1,6 +1,6 @@
 # okaru-files: compila la rama main del checkout (OKARU_FILES_REPO, por defecto ~/Projects/okaru-project/okaru-files).
 pkgname=okaru-files
-pkgver=1.0.3
+pkgver=1.1.0
 pkgrel=1
 pkgdesc='OKARU (郁): el gestor de archivos'
 arch=(x86_64)
