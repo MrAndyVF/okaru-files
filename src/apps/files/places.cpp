@@ -1,6 +1,7 @@
 #include "apps/files/places.h"
 
 #include "apps/files/file_model.h"
+#include "core/deferred_call.h"
 #include "i18n/i18n.h"
 
 #include <algorithm>
@@ -9,6 +10,7 @@
 #include <gio/gio.h>
 #include <glib.h>
 #include <sstream>
+#include <thread>
 
 namespace okaru::files {
 
@@ -117,12 +119,25 @@ namespace okaru::files {
   } // namespace
 
   Places::Places() {
-    m_monitor = g_volume_monitor_get();
-    for (const char* signal :
-         {"mount-added", "mount-removed", "mount-changed", "volume-added", "volume-removed", "volume-changed",
-          "drive-connected", "drive-disconnected"}) {
-      g_signal_connect(m_monitor, signal, G_CALLBACK(&Places::onMonitorChanged), this);
-    }
+    // La primera llamada carga el módulo de gvfs y le pregunta a gvfsd por D-Bus: si gvfsd está lento o
+    // colgado, en el hilo principal la ventana no se abriría. Los discos y montajes llegan al estar listo.
+    std::weak_ptr<int> alive = m_alive;
+    std::thread([this, alive] {
+      GVolumeMonitor* monitor = g_volume_monitor_get();
+      DeferredCall::callLater([this, alive, monitor] {
+        if (alive.expired()) {
+          g_object_unref(monitor);
+          return;
+        }
+        m_monitor = monitor;
+        for (const char* signal :
+             {"mount-added", "mount-removed", "mount-changed", "volume-added", "volume-removed", "volume-changed",
+              "drive-connected", "drive-disconnected"}) {
+          g_signal_connect(m_monitor, signal, G_CALLBACK(&Places::onMonitorChanged), this);
+        }
+        refresh();
+      });
+    }).detach();
     refresh();
   }
 
@@ -204,7 +219,7 @@ namespace okaru::files {
     }
 
     // Montajes (USB, discos, teléfonos, red) y volúmenes sin montar.
-    GList* mounts = g_volume_monitor_get_mounts(m_monitor);
+    GList* mounts = m_monitor != nullptr ? g_volume_monitor_get_mounts(m_monitor) : nullptr;
     for (GList* l = mounts; l != nullptr; l = l->next) {
       auto* mount = G_MOUNT(l->data);
       if (g_mount_is_shadowed(mount) != FALSE) {
@@ -236,7 +251,7 @@ namespace okaru::files {
     }
     g_list_free_full(mounts, g_object_unref);
 
-    GList* volumes = g_volume_monitor_get_volumes(m_monitor);
+    GList* volumes = m_monitor != nullptr ? g_volume_monitor_get_volumes(m_monitor) : nullptr;
     for (GList* l = volumes; l != nullptr; l = l->next) {
       auto* volume = G_VOLUME(l->data);
       GMount* mount = g_volume_get_mount(volume);
@@ -338,7 +353,7 @@ namespace okaru::files {
   }
 
   void Places::mount(const std::string& id, void* operationRaw, DoneFn done) {
-    GList* volumes = g_volume_monitor_get_volumes(m_monitor);
+    GList* volumes = m_monitor != nullptr ? g_volume_monitor_get_volumes(m_monitor) : nullptr;
     GVolume* target = nullptr;
     for (GList* l = volumes; l != nullptr; l = l->next) {
       if (target == nullptr && volumeId(G_VOLUME(l->data)) == id) {
@@ -377,7 +392,7 @@ namespace okaru::files {
   }
 
   void Places::unmount(const std::string& id, bool eject, void* operationRaw, DoneFn done) {
-    GMount* mount = findMount(m_monitor, id);
+    GMount* mount = m_monitor != nullptr ? findMount(m_monitor, id) : nullptr;
     if (mount == nullptr) {
       done(false, {});
       return;
