@@ -30,6 +30,7 @@
 #include "util/file_utils.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cursor-shape-v1-client-protocol.h>
@@ -115,24 +116,37 @@ namespace okaru::files {
     }
 
     // Suma recursiva para Propiedades (en un hilo).
+    // Solo nombre, tipo y tamaño: listDirectory pide 21 atributos (el tipo de contenido abre cada archivo)
+    // y en un disco mecánico es muchísimo más lento. `tick` se llama tras cada carpeta.
     void countRecursive(
-        const std::string& uri, std::uint64_t& bytes, std::size_t& files, std::size_t& folders,
-        const std::weak_ptr<int>& alive, int depth = 0
+        GFile* dir, std::uint64_t& bytes, std::size_t& files, std::size_t& folders, const std::weak_ptr<int>& alive,
+        const std::function<void()>& tick, int depth = 0
     ) {
-      std::vector<FileEntry> entries;
-      std::string error;
-      if (depth > 64 || alive.expired() || !listDirectory(uri, entries, error)) {
+      if (depth > 64 || alive.expired()) {
         return;
       }
-      for (const auto& e : entries) {
-        if (e.directory && !e.symlink && !e.mountable) {
-          ++folders;
-          countRecursive(e.uri, bytes, files, folders, alive, depth + 1);
-        } else {
-          ++files;
-          bytes += e.size;
-        }
+      GFileEnumerator* it = g_file_enumerate_children(
+          dir, "standard::name,standard::type,standard::size", G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, nullptr, nullptr
+      );
+      if (it == nullptr) {
+        return;
       }
+      GFileInfo* info = nullptr;
+      while (!alive.expired() && (info = g_file_enumerator_next_file(it, nullptr, nullptr)) != nullptr) {
+        if (g_file_info_get_file_type(info) == G_FILE_TYPE_DIRECTORY) {
+          ++folders;
+          GFile* child = g_file_get_child(dir, g_file_info_get_name(info));
+          countRecursive(child, bytes, files, folders, alive, tick, depth + 1);
+          g_object_unref(child);
+        } else {
+          // Archivos, enlaces (sin seguirlos) y montables, como antes.
+          ++files;
+          bytes += static_cast<std::uint64_t>(g_file_info_get_size(info));
+        }
+        g_object_unref(info);
+      }
+      g_object_unref(it);
+      tick();
     }
 
     std::string trimmed(std::string text) {
@@ -1664,35 +1678,47 @@ namespace okaru::files {
       std::uint64_t bytes = 0;
       std::size_t files = 0;
       std::size_t folders = 0;
+      // Cifras parciales cada 250 ms mientras cuenta; la última llega con counting = false.
+      const auto post = [this, alive, items, &bytes, &files, &folders](bool done) {
+        DeferredCall::callLater([this, alive, items, bytes, files, folders, done] {
+          if (alive.expired()
+              || m_properties.uris.size() != items.size()
+              || m_properties.uris.front() != items.front().first
+              || !m_properties.counting) {
+            return;
+          }
+          m_properties.bytes = bytes;
+          m_properties.files = files;
+          m_properties.folders = folders;
+          m_properties.counting = !done;
+          if (m_overlay == Overlay::Properties) {
+            m_app.requestRebuild();
+          }
+        });
+      };
+      auto last = std::chrono::steady_clock::now();
+      const std::function<void()> tick = [&] {
+        if (const auto now = std::chrono::steady_clock::now(); now - last >= std::chrono::milliseconds(250)) {
+          last = now;
+          post(false);
+        }
+      };
       for (const auto& [uri, dir] : items) {
+        GFile* file = g_file_new_for_uri(uri.c_str());
         if (dir) {
           ++folders;
-          countRecursive(uri, bytes, files, folders, alive);
+          countRecursive(file, bytes, files, folders, alive, tick);
         } else {
-          GFile* file = g_file_new_for_uri(uri.c_str());
           GFileInfo* info = g_file_query_info(file, "standard::size", G_FILE_QUERY_INFO_NONE, nullptr, nullptr);
           if (info != nullptr) {
             bytes += static_cast<std::uint64_t>(g_file_info_get_size(info));
             g_object_unref(info);
           }
-          g_object_unref(file);
           ++files;
         }
+        g_object_unref(file);
       }
-      DeferredCall::callLater([this, alive, items, bytes, files, folders] {
-        if (alive.expired()
-            || m_properties.uris.size() != items.size()
-            || m_properties.uris.front() != items.front().first) {
-          return;
-        }
-        m_properties.bytes = bytes;
-        m_properties.files = files;
-        m_properties.folders = folders;
-        m_properties.counting = false;
-        if (m_overlay == Overlay::Properties) {
-          m_app.requestRebuild();
-        }
-      });
+      post(true);
     }).detach();
     m_app.requestRebuild();
   }
@@ -4265,9 +4291,13 @@ namespace okaru::files {
       } else {
         heading(trp("apps.files.prop.many", static_cast<long>(p.uris.size())));
       }
-      std::string size = p.counting ? tr("apps.files.prop.counting") : formatSize(p.bytes);
-      if (!p.counting && (p.folders > 0 || !single)) {
+      // Mientras cuenta muestra lo que lleva: "12 GB — 4210 archivos, 300 carpetas · Calculando…".
+      std::string size = p.counting && p.bytes == 0 && p.files == 0 ? "" : formatSize(p.bytes);
+      if (!size.empty() && (p.folders > 0 || !single)) {
         size += " — " + trp("apps.files.prop.contents", static_cast<long>(p.files), "folders", p.folders);
+      }
+      if (p.counting) {
+        size += (size.empty() ? "" : " · ") + tr("apps.files.prop.counting");
       }
       info(tr("apps.files.prop.size"), size);
       if (single) {
