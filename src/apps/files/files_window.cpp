@@ -247,6 +247,12 @@ namespace okaru::files {
       m_app.requestRebuild();
     });
     m_ops.setOnDone([this](OpResult result) { onOperationDone(std::move(result)); });
+    // Lo que escriben otras apps no avisa: el espacio libre de Dispositivos se vuelve a medir cada pocos segundos.
+    m_spaceTimer.startRepeating(std::chrono::seconds(5), [this] {
+      if (m_places.refreshSpace() && (m_view == nullptr || !m_view->dragging())) {
+        m_app.requestRebuild();
+      }
+    });
 
     m_app.setBuild([this](float w, float h, float s) { return build(w, h, s); });
     m_app.setKeyHandler([this](const KeyboardEvent& event) { return onKey(event); });
@@ -1359,6 +1365,7 @@ namespace okaru::files {
   void FilesWindow::onOperationDone(OpResult result) {
     m_ops.remember(result);
     m_progress.reset();
+    m_places.refreshSpace(); // copiar, mover o borrar cambia el espacio libre
     if (!result.untrashable.empty()) {
       // Sin papelera en ese sistema de archivos (red, USB sin .Trash): ofrecer borrar para siempre.
       m_dialogUris = result.untrashable;

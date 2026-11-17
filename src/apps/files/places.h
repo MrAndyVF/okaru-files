@@ -82,6 +82,8 @@ namespace okaru::files {
 
     void setOnChanged(ChangedFn callback) { m_onChanged = std::move(callback); }
     void refresh();
+    // Vuelve a medir el espacio libre de los discos locales; true si cambió algo.
+    bool refreshSpace();
 
     [[nodiscard]] const std::vector<Place>& places() const noexcept { return m_places; }
 
