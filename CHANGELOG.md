@@ -2,6 +2,20 @@
 
 Each version has an English and a Spanish section. / Cada versión tiene una sección en inglés y otra en español.
 
+## [1.1.1] - 2026-11-17
+
+### English
+
+#### Fixes
+- The **used space of drives** in Devices now updates while the window is open: after every copy, move or delete,
+  and every few seconds for what other apps write. Before, it only changed after closing and reopening.
+
+### Español
+
+#### Correcciones
+- El **espacio ocupado de los discos** en Dispositivos se actualiza con la ventana abierta: tras cada copia, movida o
+  borrado, y cada pocos segundos para lo que escriben otras apps. Antes solo cambiaba al cerrar y volver a abrir.
+
 ## [1.1.0] - 2026-11-16
 
 ### English
