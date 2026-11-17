@@ -397,6 +397,22 @@ namespace okaru::files {
     }
   }
 
+  bool Places::refreshSpace() {
+    bool changed = false;
+    for (Place& place : m_places) {
+      if (place.total == 0 || !place.uri.starts_with("file://")) {
+        continue; // sin capacidad conocida o remoto: no se mide (un montaje de red colgado bloquearía)
+      }
+      const std::uint64_t total = place.total;
+      const std::uint64_t free = place.free;
+      GFile* root = g_file_new_for_uri(place.uri.c_str());
+      fillSpace(place, root);
+      g_object_unref(root);
+      changed = changed || place.total != total || place.free != free;
+    }
+    return changed;
+  }
+
   // ── Marcadores ─────────────────────────────────────────────────────────────────────────────────────
 
   std::vector<Places::Bookmark> Places::readBookmarks() const {

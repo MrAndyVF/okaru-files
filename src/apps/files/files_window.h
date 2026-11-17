@@ -317,6 +317,7 @@ namespace okaru::files {
     void* m_dbus = nullptr; // GDBusConnection*
     unsigned m_dbusSubscription = 0;
     Timer m_phonesTimer;
+    Timer m_spaceTimer;
     bool m_phonesBusy = false;
     bool m_phonesAgain = false;
     std::unordered_map<std::string, std::string> m_shownPaths;
