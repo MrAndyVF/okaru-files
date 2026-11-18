@@ -71,6 +71,8 @@ namespace okaru::files {
     FilesWindow(apps::OkaruApp& app, const std::vector<std::string>& locations, const PickerOptions* picker = nullptr);
     // Selector: 0 si se eligió algo (ya impreso en la salida estándar), 1 si se canceló.
     [[nodiscard]] int pickerExitCode() const noexcept { return m_pickResult; }
+    // Tras abrir las carpetas: la pestaña i selecciona items[i] al cargar; con properties, abre sus propiedades.
+    void revealItems(const std::vector<std::string>& items, std::vector<std::string> properties);
     ~FilesWindow();
 
   private:
