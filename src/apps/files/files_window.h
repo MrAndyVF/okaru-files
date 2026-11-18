@@ -71,6 +71,8 @@ namespace okaru::files {
     FilesWindow(apps::OkaruApp& app, const std::vector<std::string>& locations, const PickerOptions* picker = nullptr);
     // Selector: 0 si se eligió algo (ya impreso en la salida estándar), 1 si se canceló.
     [[nodiscard]] int pickerExitCode() const noexcept { return m_pickResult; }
+    // Tras abrir las carpetas: la pestaña i selecciona items[i] al cargar; con properties, abre sus propiedades.
+    void revealItems(const std::vector<std::string>& items, std::vector<std::string> properties);
     ~FilesWindow();
 
   private:
@@ -199,6 +201,7 @@ namespace okaru::files {
     [[nodiscard]] std::unique_ptr<Node> buildPickerBar(float scale);
     void applyPickFilter();
     void pickAccept(bool confirmed = false);
+    [[nodiscard]] std::string pickAcceptLabel();
     void pickFinish(const std::vector<std::string>& uris);
     void compressSelection();
     void extractSelection();
@@ -385,6 +388,7 @@ namespace okaru::files {
     Input* m_findInput = nullptr;
     Input* m_dialogInput = nullptr;
     Label* m_statusLabel = nullptr;
+    Button* m_pickAcceptButton = nullptr;
     ContextMenuControl* m_menuControl = nullptr;
     Label* m_detailsName = nullptr;
     Label* m_detailsInfo = nullptr;

@@ -2,6 +2,7 @@
 // (crear, copiar con conflicto, mover, papelera con deshacer) sobre una carpeta temporal.
 #include "apps/files/archive.h"
 #include "apps/files/drag_icon.h"
+#include "apps/files/file_manager1.h"
 #include "apps/files/file_model.h"
 #include "apps/files/file_ops.h"
 #include "apps/files/icon_cache.h"
@@ -54,6 +55,18 @@ namespace {
 } // namespace
 
 int main() {
+  {
+    // «Mostrar en la carpeta» (FileManager1): la orden por método y una pestaña por carpeta con su elemento.
+    using V = std::vector<std::string>;
+    assert(fileManagerCommand("okaru-files", "ShowItems", V{"file:///a/b.txt"}) == (V{"okaru-files", "--select", "file:///a/b.txt"}));
+    assert(fileManagerCommand("okaru-files", "ShowFolders", V{"file:///a"}) == (V{"okaru-files", "file:///a"}));
+    assert(fileManagerCommand("okaru-files", "ShowItemProperties", V{"file:///a/b"})[1] == "--properties");
+    assert(fileManagerCommand("okaru-files", "ShowItems", V{}).empty());
+    assert(fileManagerCommand("okaru-files", "Otro", V{"file:///a"}).empty());
+    const RevealTargets targets = revealTargets(V{"file:///a/x", "file:///b/y", "file:///a/z"});
+    assert(targets.folders == (V{"file:///a", "file:///b"}));
+    assert(targets.items == (V{"file:///a/x", "file:///b/y"}));
+  }
   {
     // Dispositivos: discos de datos sí; raíz, sus subvolúmenes, partes del sistema, loops y zram no.
     const std::string root = "/dev/nvme0n1p5";

@@ -354,6 +354,16 @@ namespace okaru::files {
     applyPickFilter();
   }
 
+  void FilesWindow::revealItems(const std::vector<std::string>& items, std::vector<std::string> properties) {
+    for (std::size_t i = 0; i < items.size() && i < m_tabs.size(); ++i) {
+      m_tabs[i]->view.revealUri = items[i];
+    }
+    if (!properties.empty()) {
+      showProperties(std::move(properties));
+    }
+    m_app.requestRebuild();
+  }
+
   FilesWindow::~FilesWindow() {
     if (m_dbus != nullptr) {
       g_dbus_connection_signal_unsubscribe(static_cast<GDBusConnection*>(m_dbus), m_dbusSubscription);
@@ -1182,7 +1192,12 @@ namespace okaru::files {
       return;
     }
     case PickMode::Folder:
-      pickFinish({items.size() == 1 && items.front()->directory ? items.front()->uri : here});
+      // Una carpeta marcada se abre (botón, doble clic o Enter); sin nada marcado se elige la actual.
+      if (items.size() == 1 && items.front()->directory) {
+        activateEntry(*items.front());
+        return;
+      }
+      pickFinish({here});
       return;
     case PickMode::Save: {
       const std::string name = trimmed(m_pickName);
@@ -1269,14 +1284,22 @@ namespace okaru::files {
     bar->addChild(ui::button({.text = tr("apps.files.cancel"), .variant = ButtonVariant::Ghost, .onClick = [this] {
                                 DeferredCall::callLater([this] { pickFinish({}); });
                               }}));
-    const std::string accept = !m_picker->acceptLabel.empty() ? m_picker->acceptLabel
-        : m_picker->mode == PickMode::Save                    ? tr("apps.files.pick.save")
-        : m_picker->mode == PickMode::Folder                  ? tr("apps.files.pick.choose-folder")
-                                                              : tr("apps.files.pick.open");
-    bar->addChild(ui::button({.text = accept, .variant = ButtonVariant::Primary, .onClick = [this] {
-                                DeferredCall::callLater([this] { pickAccept(); });
-                              }}));
+    bar->addChild(ui::button({.out = &m_pickAcceptButton, .text = pickAcceptLabel(), .variant = ButtonVariant::Primary,
+                              .onClick = [this] { DeferredCall::callLater([this] { pickAccept(); }); }}));
     return bar;
+  }
+
+  std::string FilesWindow::pickAcceptLabel() {
+    // Elegir carpeta con una carpeta marcada: el botón entra en ella (eso hace pickAccept).
+    if (m_picker->mode == PickMode::Folder) {
+      if (const auto items = selection(); items.size() == 1 && items.front()->directory) {
+        return tr("apps.files.pick.open");
+      }
+    }
+    return !m_picker->acceptLabel.empty() ? m_picker->acceptLabel
+        : m_picker->mode == PickMode::Save ? tr("apps.files.pick.save")
+        : m_picker->mode == PickMode::Folder ? tr("apps.files.pick.choose-folder")
+                                             : tr("apps.files.pick.open");
   }
 
   // ── Portapapeles ───────────────────────────────────────────────────────────────────────────────────
@@ -2680,6 +2703,7 @@ namespace okaru::files {
     m_findInput = nullptr;
     m_dialogInput = nullptr;
     m_statusLabel = nullptr;
+    m_pickAcceptButton = nullptr;
     m_pickNameInput = nullptr;
     m_bulkPreview = nullptr;
     m_bulkApply = nullptr;
@@ -4059,6 +4083,9 @@ namespace okaru::files {
       text = tr("apps.files.loading");
     }
     m_statusLabel->setText(text);
+    if (m_pickAcceptButton != nullptr) {
+      m_pickAcceptButton->setText(pickAcceptLabel());
+    }
     updateDetails();
     if (m_picker
         && m_picker->mode == PickMode::Save
