@@ -2,6 +2,32 @@
 
 Each version has an English and a Spanish section. / Cada versión tiene una sección en inglés y otra en español.
 
+## [1.2.0] - 2026-11-18
+
+### English
+
+#### Features
+- **Show in folder** from browsers and other apps: Files answers `org.freedesktop.FileManager1` (started on demand
+  over D-Bus) and opens the folder with the file selected. From the terminal, `okaru-files --select <files>` does
+  the same and `--properties <files>` also opens their properties.
+
+#### Fixes
+- **Folder picker** (Heroic and other apps): with a folder selected the button says Open and goes into it; with
+  nothing selected it chooses the current folder. Before, the button, double-click and Enter always chose the
+  selected folder, so you could not go down into folders.
+
+### Español
+
+#### Novedades
+- **Mostrar en la carpeta** desde navegadores y otras apps: Archivos atiende `org.freedesktop.FileManager1` (se
+  inicia por D-Bus cuando hace falta) y abre la carpeta con el archivo seleccionado. Desde la terminal,
+  `okaru-files --select <archivos>` hace lo mismo y `--properties <archivos>` además abre sus propiedades.
+
+#### Correcciones
+- **Selector de carpetas** (Heroic y otras apps): con una carpeta marcada el botón dice Abrir y entra en ella; sin
+  nada marcado elige la carpeta actual. Antes el botón, el doble clic y Enter siempre elegían la carpeta marcada,
+  así que no se podía bajar por las carpetas.
+
 ## [1.1.1] - 2026-11-17
 
 ### English
