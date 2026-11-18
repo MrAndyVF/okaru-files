@@ -354,6 +354,16 @@ namespace okaru::files {
     applyPickFilter();
   }
 
+  void FilesWindow::revealItems(const std::vector<std::string>& items, std::vector<std::string> properties) {
+    for (std::size_t i = 0; i < items.size() && i < m_tabs.size(); ++i) {
+      m_tabs[i]->view.revealUri = items[i];
+    }
+    if (!properties.empty()) {
+      showProperties(std::move(properties));
+    }
+    m_app.requestRebuild();
+  }
+
   FilesWindow::~FilesWindow() {
     if (m_dbus != nullptr) {
       g_dbus_connection_signal_unsubscribe(static_cast<GDBusConnection*>(m_dbus), m_dbusSubscription);
