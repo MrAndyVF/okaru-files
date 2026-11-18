@@ -201,6 +201,7 @@ namespace okaru::files {
     [[nodiscard]] std::unique_ptr<Node> buildPickerBar(float scale);
     void applyPickFilter();
     void pickAccept(bool confirmed = false);
+    [[nodiscard]] std::string pickAcceptLabel();
     void pickFinish(const std::vector<std::string>& uris);
     void compressSelection();
     void extractSelection();
@@ -387,6 +388,7 @@ namespace okaru::files {
     Input* m_findInput = nullptr;
     Input* m_dialogInput = nullptr;
     Label* m_statusLabel = nullptr;
+    Button* m_pickAcceptButton = nullptr;
     ContextMenuControl* m_menuControl = nullptr;
     Label* m_detailsName = nullptr;
     Label* m_detailsInfo = nullptr;
