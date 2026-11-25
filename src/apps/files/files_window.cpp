@@ -4246,7 +4246,7 @@ namespace okaru::files {
         ui::box({
             .fill = colorSpecFromRole(ColorRole::SurfaceContainerHigh),
             .border = colorSpecFromRole(ColorRole::OutlineVariant),
-            .borderWidth = 1.0F,
+            .borderWidth = Style::borderWidth,
             .radius = Style::radiusLg * scale,
             .width = menuWidth,
             .height = menuHeight,
