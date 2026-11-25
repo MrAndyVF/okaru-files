@@ -3555,6 +3555,8 @@ namespace okaru::files {
         .padding = Style::spaceMd * scale,
         .fill = colorSpecFromRole(ColorRole::SurfaceContainer),
         .radius = Style::radiusLg * scale,
+        .border = colorSpecFromRole(ColorRole::Primary), // OKARU: como los paneles
+        .borderWidth = Style::borderWidth,
         .width = cardW,
         .height = cardH,
     });
@@ -4225,6 +4227,8 @@ namespace okaru::files {
         .padding = Style::spaceLg * scale,
         .fill = colorSpecFromRole(ColorRole::SurfaceContainerHigh),
         .radius = Style::radiusLg * scale,
+        .border = colorSpecFromRole(ColorRole::Primary), // OKARU: como los paneles
+        .borderWidth = Style::borderWidth,
         .width = std::min((m_overlay == Overlay::IconPicker ? 760.0F : 480.0F) * scale, width - 32.0F),
         // El selector de iconos tiene altura fija: su cuadrícula ocupa lo que queda y se desplaza dentro.
         .height = m_overlay == Overlay::IconPicker ? std::optional<float>(std::min(640.0F * scale, height - 64.0F))
