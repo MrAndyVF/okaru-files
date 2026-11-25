@@ -2760,11 +2760,20 @@ namespace okaru::files {
       main->addChild(buildFindBar(scale));
     }
     auto body = ui::row({.align = FlexAlign::Stretch, .gap = 0.0F, .flexGrow = 1.0F});
+    m_sidebarHolder = nullptr;
     m_sidebarContent = nullptr;
     const bool sidebarSpace = (m_sidebar || m_sidebarAnim != 0) && width > 560.0F * scale;
-    if (sidebarSpace) {
-      // El contenedor recorta: la barra entra y sale deslizándose dentro de él (ver toggleSidebar).
-      auto holder = ui::row({.align = FlexAlign::Stretch, .clipChildren = true, .width = kSidebarWidth * scale});
+    if (width > 560.0F * scale) {
+      // Cerrada, el contenedor se oculta y no ocupa lugar (un ancho máximo de 0 significaría «sin límite»).
+      auto holder = ui::row({
+          .out = &m_sidebarHolder,
+          .align = FlexAlign::Stretch,
+          .minWidth = kSidebarWidth * scale,
+          .maxWidth = kSidebarWidth * scale,
+          .clipChildren = true,
+          .visible = sidebarSpace,
+          .participatesInLayout = sidebarSpace,
+      });
       auto sidebar = buildSidebar(height, scale);
       sidebar->setOpacity(m_sidebarSlide);
       m_sidebarContent = sidebar.get();
@@ -2806,14 +2815,17 @@ namespace okaru::files {
         .paddingH = Style::spaceMd * scale,
         .height = 52.0F * scale,
     });
+    m_sidebarButton = nullptr;
     if (width > 560.0F * scale) {
-      header->addChild(ghost(
+      auto sidebarButton = ghost(
           "layout-sidebar", tr("apps.files.sidebar"),
           [this] {
             toggleSidebar();
           },
           true, m_sidebar
-      ));
+      );
+      m_sidebarButton = sidebarButton.get();
+      header->addChild(std::move(sidebarButton));
     }
     header->addChild(ghost("arrow-left", tr("apps.files.back"), [this] { goBack(); }, !t.back.empty()));
     header->addChild(ghost("arrow-right", tr("apps.files.forward"), [this] { goForward(); }, !t.forward.empty()));
@@ -3071,38 +3083,49 @@ namespace okaru::files {
     return bar;
   }
 
+  void FilesWindow::applySidebarSlide(float slide) {
+    m_sidebarSlide = std::clamp(slide, 0.0F, 1.0F);
+    if (m_sidebarHolder == nullptr || m_sidebarContent == nullptr) {
+      return;
+    }
+    const float full = kSidebarWidth * m_sidebarScale;
+    // El contenedor crece con el resorte (el rebote empuja un poco el contenido) y la barra entra pegada a su borde.
+    const float width = std::max(1.0F, full * slide);
+    m_sidebarHolder->setVisible(slide > 0.0F || m_sidebar);
+    m_sidebarHolder->setParticipatesInLayout(slide > 0.0F || m_sidebar);
+    m_sidebarHolder->setMinWidth(width);
+    m_sidebarHolder->setMaxWidth(width);
+    m_sidebarHolder->markLayoutDirty();
+    m_sidebarContent->setPosition(std::min(0.0F, width - full), m_sidebarContent->y());
+    m_sidebarContent->setOpacity(std::clamp(slide * 1.4F, 0.0F, 1.0F));
+    m_app.invalidate();
+  }
+
   void FilesWindow::toggleSidebar() {
-    AnimationManager* anim = m_view != nullptr ? m_view->animationManager() : nullptr;
     m_sidebar = !m_sidebar;
-    if (anim == nullptr) {
+    if (m_sidebarButton != nullptr) {
+      m_sidebarButton->setSelected(m_sidebar);
+      m_sidebarButton->setVariant(m_sidebar ? ButtonVariant::Secondary : ButtonVariant::Ghost);
+    }
+    AnimationManager* anim = m_sidebarHolder != nullptr ? m_sidebarHolder->animationManager() : nullptr;
+    if (anim == nullptr || m_sidebarContent == nullptr) {
       m_sidebarSlide = m_sidebar ? 1.0F : 0.0F;
       m_app.requestRebuild();
       return;
     }
     if (m_sidebarAnim != 0) {
       anim->cancel(m_sidebarAnim);
+      m_sidebarAnim = 0;
     }
-    if (m_sidebar && m_sidebarContent == nullptr) {
-      m_sidebarSlide = 0.0F;
-      m_app.requestRebuild(); // hace lugar a la barra una vez; después solo se mueve
-    }
-    // Moverla y atenuarla solo repinta: el resto de la ventana se acomoda una vez, al empezar (abrir) o al
-    // terminar (cerrar), así la animación no se entrecorta con carpetas grandes.
+    // Movimiento estilo Material 3 Expressive: al abrir, un resorte que arranca rápido y se pasa un poco (empuja el
+    // contenido y vuelve); al cerrar, una salida corta y suave. La ventana ya no se rehace: solo se reacomoda.
+    const bool opening = m_sidebar;
     m_sidebarAnim = anim->animate(
-        m_sidebarSlide, m_sidebar ? 1.0F : 0.0F, 220.0F, Easing::EaseOutCubic,
-        [this](float slide) {
-          m_sidebarSlide = slide;
-          if (m_sidebarContent != nullptr) {
-            m_sidebarContent->setPosition(-kSidebarWidth * m_sidebarScale * (1.0F - slide), m_sidebarContent->y());
-            m_sidebarContent->setOpacity(slide);
-          }
-          m_app.requestFrame();
-        },
+        m_sidebarSlide, opening ? 1.0F : 0.0F, opening ? 420.0F : 260.0F,
+        opening ? Easing::EaseOutBack : Easing::EaseInOutCubic, [this](float slide) { applySidebarSlide(slide); },
         [this] {
           m_sidebarAnim = 0;
-          if (!m_sidebar) {
-            m_app.requestRebuild(); // cerrada: el contenido toma el ancho de la barra
-          }
+          applySidebarSlide(m_sidebar ? 1.0F : 0.0F);
         }
     );
   }
