@@ -4633,7 +4633,7 @@ namespace okaru::files {
                  .fill = swatch.fill,
                  .border = colorSpecFromRole(swatch.id == current ? ColorRole::OnSurface : ColorRole::OutlineVariant),
                  .borderWidth = swatch.id == current ? 3.0F * scale : 1.0F,
-                 .radius = dot * 0.5F,
+                 .radius = 0.0F, // OKARU: esquinas rectas en todo el sistema
                  .width = dot,
                  .height = dot}
             )
