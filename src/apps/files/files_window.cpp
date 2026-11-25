@@ -2656,8 +2656,7 @@ namespace okaru::files {
         {.label = tr("apps.files.menu.sidebar"),
          .action =
              [this] {
-               m_sidebar = !m_sidebar;
-               m_app.requestRebuild();
+               toggleSidebar();
              },
          .checked = m_sidebar,
          .check = true}
@@ -2761,8 +2760,18 @@ namespace okaru::files {
       main->addChild(buildFindBar(scale));
     }
     auto body = ui::row({.align = FlexAlign::Stretch, .gap = 0.0F, .flexGrow = 1.0F});
-    if (m_sidebar && width > 560.0F * scale) {
-      body->addChild(buildSidebar(height, scale));
+    m_sidebarHolder = nullptr;
+    if ((m_sidebar || m_sidebarShown > 0.0F) && width > 560.0F * scale) {
+      const float shownWidth = kSidebarWidth * scale * m_sidebarShown;
+      auto holder = ui::row({
+          .out = &m_sidebarHolder,
+          .align = FlexAlign::Stretch,
+          .minWidth = shownWidth,
+          .maxWidth = shownWidth,
+          .clipChildren = true,
+      });
+      holder->addChild(buildSidebar(height, scale));
+      body->addChild(std::move(holder));
     }
     body->addChild(
         buildBody(width - (m_sidebar && width > 560.0F * scale ? kSidebarWidth * scale : 0.0F), height, scale)
@@ -2803,8 +2812,7 @@ namespace okaru::files {
       header->addChild(ghost(
           "layout-sidebar", tr("apps.files.sidebar"),
           [this] {
-            m_sidebar = !m_sidebar;
-            m_app.requestRebuild();
+            toggleSidebar();
           },
           true, m_sidebar
       ));
@@ -3065,14 +3073,46 @@ namespace okaru::files {
     return bar;
   }
 
+  void FilesWindow::toggleSidebar() {
+    m_sidebar = !m_sidebar;
+    AnimationManager* anim = m_sidebarHolder != nullptr ? m_sidebarHolder->animationManager() : nullptr;
+    if (anim == nullptr) {
+      m_sidebarShown = m_sidebar ? 1.0F : 0.0F;
+      m_app.requestRebuild();
+      return;
+    }
+    if (m_sidebarAnim != 0) {
+      anim->cancel(m_sidebarAnim);
+    }
+    // Se desliza: el contenedor recorta la barra mientras su ancho va de 0 al ancho completo (o al revés).
+    m_sidebarAnim = anim->animate(
+        m_sidebarShown, m_sidebar ? 1.0F : 0.0F, 200.0F, Easing::EaseOutCubic,
+        [this](float shown) {
+          m_sidebarShown = shown;
+          if (m_sidebarHolder != nullptr) {
+            const float w = kSidebarWidth * m_sidebarScale * shown;
+            m_sidebarHolder->setMinWidth(w);
+            m_sidebarHolder->setMaxWidth(w);
+            m_sidebarHolder->markLayoutDirty();
+          }
+          m_app.requestFrame();
+        },
+        [this] {
+          m_sidebarAnim = 0;
+          m_app.requestRebuild(); // el cuerpo recalcula columnas con el ancho final; cerrada, la barra se quita
+        }
+    );
+  }
+
   std::unique_ptr<Node> FilesWindow::buildSidebar(float height, float scale) {
     (void)height;
     m_deviceDrag = {}; // reconstruir suelta las filas: un arrastre a medias se descarta
     m_sidebarScale = scale;
+    // Filas altas y con aire, como los módulos de Ajustes (OKARU 2026-11).
     auto column = ui::column({
         .align = FlexAlign::Stretch,
-        .gap = 1.0F * scale,
-        .paddingV = Style::spaceXs * scale,
+        .gap = 4.0F * scale,
+        .paddingV = Style::spaceSm * scale,
         .paddingH = Style::spaceSm * scale,
     });
     const std::string current = tab().model->uri();
@@ -3094,7 +3134,7 @@ namespace okaru::files {
         );
       }
       const bool active = !place.uri.empty() && place.uri == current;
-      const float rowHeight = (place.total > 0 ? 40.0F : 32.0F) * scale;
+      const float rowHeight = (place.total > 0 ? 52.0F : 42.0F) * scale;
       auto row = ui::node({.height = rowHeight});
       Box* background = nullptr;
       row->addChild(
@@ -3108,15 +3148,15 @@ namespace okaru::files {
       );
       auto content = ui::row({
           .align = FlexAlign::Center,
-          .gap = Style::spaceSm * scale,
-          .paddingH = Style::spaceSm * scale,
+          .gap = 10.0F * scale,
+          .paddingH = 10.0F * scale,
           .width = (kSidebarWidth - 2.0F * Style::spaceSm) * scale,
           .height = rowHeight,
       });
       content->addChild(
           ui::glyph({
               .glyph = place.glyph,
-              .glyphSize = 16.0F * scale,
+              .glyphSize = 18.0F * scale,
               .color = colorSpecFromRole(active ? ColorRole::Primary : ColorRole::OnSurfaceVariant),
           })
       );
@@ -5441,8 +5481,7 @@ namespace okaru::files {
       return true;
     }
     if (key(XKB_KEY_F9, 0)) {
-      m_sidebar = !m_sidebar;
-      m_app.requestRebuild();
+      toggleSidebar();
       return true;
     }
     if (key(XKB_KEY_d, KeyMod::Ctrl)) {
@@ -5480,6 +5519,7 @@ namespace okaru::files {
         m_defaultMode = modeOf((*view)["mode"].value_or(std::string("list")));
         m_iconSize = static_cast<float>((*view)["icon_size"].value_or(64.0));
         m_sidebar = (*view)["sidebar"].value_or(true);
+        m_sidebarShown = m_sidebar ? 1.0F : 0.0F;
         m_options.showHidden = (*view)["show_hidden"].value_or(false);
         m_thumbnails = (*view)["thumbnails"].value_or(true);
         m_icons.setDefaultFolderColor((*view)["folder_color"].value_or(std::string()));

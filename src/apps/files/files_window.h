@@ -335,6 +335,11 @@ namespace okaru::files {
     Mode m_defaultMode = Mode::List;
     float m_iconSize = 64.0F;
     bool m_sidebar = true;
+    // Barra lateral animada: 0 = cerrada, 1 = abierta; el contenedor recorta y su ancho sigue a este valor.
+    float m_sidebarShown = 1.0F;
+    Flex* m_sidebarHolder = nullptr;
+    std::uint32_t m_sidebarAnim = 0;
+    void toggleSidebar();
     bool m_thumbnails = true;
     std::map<std::string, Mode> m_folderModes;
     std::map<std::string, ViewOptions> m_folderSorts; // orden elegido a mano por carpeta
