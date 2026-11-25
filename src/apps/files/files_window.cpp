@@ -2761,7 +2761,8 @@ namespace okaru::files {
     }
     auto body = ui::row({.align = FlexAlign::Stretch, .gap = 0.0F, .flexGrow = 1.0F});
     m_sidebarHolder = nullptr;
-    if ((m_sidebar || m_sidebarShown > 0.0F) && width > 560.0F * scale) {
+    // Siempre se arma (oculta si está cerrada): así abrirla también puede animarse.
+    if (width > 560.0F * scale) {
       const float shownWidth = kSidebarWidth * scale * m_sidebarShown;
       auto holder = ui::row({
           .out = &m_sidebarHolder,
@@ -2769,6 +2770,7 @@ namespace okaru::files {
           .minWidth = shownWidth,
           .maxWidth = shownWidth,
           .clipChildren = true,
+          .visible = m_sidebarShown > 0.0F,
       });
       holder->addChild(buildSidebar(height, scale));
       body->addChild(std::move(holder));
@@ -3093,13 +3095,14 @@ namespace okaru::files {
             const float w = kSidebarWidth * m_sidebarScale * shown;
             m_sidebarHolder->setMinWidth(w);
             m_sidebarHolder->setMaxWidth(w);
+            m_sidebarHolder->setVisible(shown > 0.0F);
             m_sidebarHolder->markLayoutDirty();
           }
-          m_app.requestFrame();
+          m_app.invalidate(); // el ancho cambió: hace falta acomodar, no solo repintar
         },
         [this] {
           m_sidebarAnim = 0;
-          m_app.requestRebuild(); // el cuerpo recalcula columnas con el ancho final; cerrada, la barra se quita
+          m_app.requestRebuild(); // el cuerpo recalcula sus columnas con el ancho final
         }
     );
   }
@@ -3111,8 +3114,8 @@ namespace okaru::files {
     // Filas altas y con aire, como los módulos de Ajustes (OKARU 2026-11).
     auto column = ui::column({
         .align = FlexAlign::Stretch,
-        .gap = 4.0F * scale,
-        .paddingV = Style::spaceSm * scale,
+        .gap = 2.0F * scale,
+        .paddingV = Style::spaceXs * scale,
         .paddingH = Style::spaceSm * scale,
     });
     const std::string current = tab().model->uri();
@@ -3134,7 +3137,7 @@ namespace okaru::files {
         );
       }
       const bool active = !place.uri.empty() && place.uri == current;
-      const float rowHeight = (place.total > 0 ? 52.0F : 42.0F) * scale;
+      const float rowHeight = (place.total > 0 ? 46.0F : 36.0F) * scale;
       auto row = ui::node({.height = rowHeight});
       Box* background = nullptr;
       row->addChild(
@@ -3148,8 +3151,8 @@ namespace okaru::files {
       );
       auto content = ui::row({
           .align = FlexAlign::Center,
-          .gap = 10.0F * scale,
-          .paddingH = 10.0F * scale,
+          .gap = Style::spaceSm * scale,
+          .paddingH = Style::spaceSm * scale,
           .width = (kSidebarWidth - 2.0F * Style::spaceSm) * scale,
           .height = rowHeight,
       });
