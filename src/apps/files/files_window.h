@@ -335,6 +335,15 @@ namespace okaru::files {
     Mode m_defaultMode = Mode::List;
     float m_iconSize = 64.0F;
     bool m_sidebar = true;
+    // Barra lateral animada sin rehacer la ventana: el contenedor está siempre (ancho 0 si está cerrada) y la barra
+    // se desliza dentro de él (0 = fuera, 1 = en su lugar); solo el cambio de ancho reacomoda, una vez.
+    float m_sidebarSlide = 1.0F;
+    Flex* m_sidebarHolder = nullptr;
+    Node* m_sidebarContent = nullptr;
+    Button* m_sidebarButton = nullptr;
+    std::uint32_t m_sidebarAnim = 0;
+    void applySidebarSlide(float slide);
+    void toggleSidebar();
     bool m_thumbnails = true;
     std::map<std::string, Mode> m_folderModes;
     std::map<std::string, ViewOptions> m_folderSorts; // orden elegido a mano por carpeta
@@ -444,7 +453,6 @@ namespace okaru::files {
     };
     DeviceDrag m_deviceDrag;
     bool m_suppressPlaceClick = false; // la suelta de un arrastre no abre el disco
-    Node* m_sidebarContent = nullptr;
     Box* m_dropLine = nullptr;
     float m_sidebarScale = 1.0F;
     std::vector<std::string> m_deviceOrder;   // [places] device_order en files.toml
