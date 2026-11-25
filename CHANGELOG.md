@@ -2,6 +2,38 @@
 
 Each version has an English and a Spanish section. / Cada versión tiene una sección en inglés y otra en español.
 
+## [1.3.0] - 2026-11-25
+
+### English
+
+#### Features
+- **Sidebar opens and closes with an animation** (F9, the header button or the menu), in the Material 3 Expressive
+  style: a spring that overshoots slightly on open and a short ease on close. The window is no longer rebuilt to do
+  it.
+
+#### Changes
+- Sidebar rows are taller and airier, like the Settings modules, and the sidebar has no scrollbar.
+- Dialog cards get a 2 px accent border, like OKARU panels; folder color swatches are square; menus follow the system
+  border width.
+- Released with OKARU 1.4.0, which brings square controls and 2 px borders to every app.
+- CI: an optional `.okaru-core-ref` file builds the app against an unpublished okaru-core (branch, tag or commit).
+
+### Español
+
+#### Novedades
+- **La barra lateral se abre y se cierra con una animación** (F9, el botón de la cabecera o el menú), al estilo
+  Material 3 Expressive: un resorte que se pasa un poco al abrir y una salida corta al cerrar. Ya no se rehace la
+  ventana para hacerlo.
+
+#### Cambios
+- Las filas de la barra lateral son más altas y con más aire, como los módulos de Ajustes, y la barra ya no muestra
+  barra de scroll.
+- Las tarjetas de diálogo llevan un borde de acento de 2 px, como los paneles de OKARU; las muestras de color de
+  carpeta son cuadradas; los menús siguen el grosor de borde del sistema.
+- Sale con OKARU 1.4.0, que trae controles cuadrados y bordes de 2 px a todas las apps.
+- CI: un archivo `.okaru-core-ref` opcional compila la app contra un okaru-core sin publicar (rama, etiqueta o
+  commit).
+
 ## [1.2.1] - 2026-11-22
 
 ### English
